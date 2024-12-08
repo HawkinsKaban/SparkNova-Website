@@ -13,10 +13,7 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [current, history] = await Promise.all([
-          getEnergyData(),
-          getEnergyHistory()
-        ]);
+        const [current, history] = await Promise.all([getEnergyData(), getEnergyHistory()]);
         setCurrentData(current.data);
         setHistoricalData(history.data);
         setError(null);
@@ -47,44 +44,64 @@ const Dashboard = () => {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">Energy Dashboard</h1>
-      
-      <PowerControl />
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+      {/* <PowerControl /> */}
+      <div className="flex flex-wrap gap-4">
         <MetricCard
-          title="Voltage"
-          value={currentData?.tegangan || 0}
-          unit="V"
+          power="50"
+          unit="Portable Speaker"
         />
         <MetricCard
-          title="Current"
-          value={currentData?.arus || 0}
-          unit="A"
+          power="30"
+          unit="LED Light"
         />
         <MetricCard
-          title="Power"
-          value={currentData?.daya || 0}
-          unit="W"
+          power="100"
+          unit="Air Conditioner"
         />
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
+      {/* <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold mb-4">Energy Consumption History</h2>
         <EnergyChart data={historicalData} />
-      </div>
+      </div> */}
     </div>
   );
 };
 
-const MetricCard = ({ title, value, unit }) => (
-  <div className="bg-white p-4 rounded-lg shadow">
-    <h3 className="text-gray-600 text-sm font-medium">{title}</h3>
-    <p className="text-2xl font-bold mt-2">
-      {value.toFixed(2)}
-      <span className="text-sm font-normal text-gray-500 ml-1">{unit}</span>
-    </p>
-  </div>
-);
+const MetricCard = ({ power, unit }) => {
+  const [isOn, setIsOn] = useState(false);
+
+  // Toggle handler
+  const handleToggle = () => {
+    setIsOn(!isOn);
+  };
+
+  return (
+    <div className="bg-white p-6 w-96 rounded-lg shadow-md">
+      <div className="flex justify-between">
+        <div className="">
+          <h3 className="font-bold text-2xl mb-4">{power}W</h3>
+          <p className="text-md font-semibold">
+            <span className="text-sm font-normal ml-1">{unit}</span>
+          </p>
+        </div>
+        <div className="flex items-center -mt-10">
+          <label className="relative inline-block w-12 h-6">
+            <input
+              type="checkbox"
+              checked={isOn}
+              onChange={handleToggle}
+              className="opacity-0 w-0 h-0"
+            />
+            <span
+              className={`slider round ${isOn ? 'bg-green-500' : 'bg-gray-300'}`}
+            ></span>
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default Dashboard;

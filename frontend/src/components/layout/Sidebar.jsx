@@ -28,7 +28,7 @@ const Sidebar = () => {
           <Home className="w-5 h-5 mr-3" />
           Dashboard
         </Link>
-        
+{/*         
         <Link
           to="/devices"
           className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
@@ -63,7 +63,7 @@ const Sidebar = () => {
         >
           <AlertTriangle className="w-5 h-5 mr-3" />
           Alerts
-        </Link>
+        </Link> */}
         
         <Link
           to="/settings"
