@@ -18,7 +18,7 @@ connectDB();
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000' || 'https://sparknova-website.vercel.app',
+  origin: process.env.CLIENT_URL,
   credentials: true
 }));
 
