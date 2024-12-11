@@ -35,7 +35,7 @@ const Dashboard = () => {
           },
         };
 
-        const response = await axios.get(`${import.meta.env.REACT_APP_API_URL}/perangkat`, config);
+        const response = await axios.get(`${process.env.REACT_APP_API_URL}/perangkat`, config);
 
         if (response.data.sukses) {
           setDevices(response.data.data);
@@ -67,7 +67,7 @@ const Dashboard = () => {
       };
 
       const response = await axios.put(
-        `${import.meta.env.REACT_APP_API_URL}/perangkat/${deviceId}`,
+        `${process.env.REACT_APP_API_URL}/perangkat/${deviceId}`,
         { status: newStatus },
         config
       );
@@ -110,7 +110,7 @@ const Dashboard = () => {
         },
       };
 
-      const response = await axios.post(`${import.meta.env.REACT_APP_API_URL}/perangkat`, formData, config);
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/perangkat`, formData, config);
 
       if (response.data.sukses) {
         // Update device list after adding new device

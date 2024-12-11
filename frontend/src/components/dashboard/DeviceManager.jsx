@@ -23,7 +23,7 @@ const DeviceManager = () => {
 
   const fetchDevices = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.REACT_APP_API_URL}/devices`, {
+      const response = await axios.get(`${process.env.REACT_APP_API_URL}/devices`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
@@ -84,7 +84,7 @@ const DeviceManager = () => {
       
       // Setelah berhasil mengonfigurasi perangkat, daftarkan ke server
       const response = await axios.post(
-        `${import.meta.env.REACT_APP_API_URL}/devices/register`,
+        `${process.env.REACT_APP_API_URL}/devices/register`,
         dataKonfigurasi,
         {
           headers: {
@@ -114,7 +114,7 @@ const DeviceManager = () => {
 
   const handleDelete = async (deviceId) => {
     try {
-      await axios.delete(`${import.meta.env.REACT_APP_API_URL}/devices/${deviceId}`, {
+      await axios.delete(`${process.env.REACT_APP_API_URL}/devices/${deviceId}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
