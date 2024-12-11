@@ -5,7 +5,6 @@ exports.daftarPerangkat = async (req, res) => {
   try {
     const { idPerangkat, nama, lokasi, jenisLayanan, wifiSSID, wifiPassword } = req.body;
 
-    // Cek apakah perangkat sudah terdaftar
     const perangkatAda = await Perangkat.findOne({ deviceId: idPerangkat });
     if (perangkatAda) {
       return res.status(400).json({
@@ -14,16 +13,14 @@ exports.daftarPerangkat = async (req, res) => {
       });
     }
 
-    // Buat perangkat baru dengan userId dari token
     const perangkat = await Perangkat.create({
-      userId: req.user._id, // Otomatis diambil dari token
+      userId: req.user._id,
       deviceId: idPerangkat,
       name: nama,
       lokasi,
-      status: 'configuring', // Status awal
+      status: 'configuring',
     });
 
-    // Buat pengaturan perangkat default
     await PengaturanPerangkat.create({
       idPerangkat: perangkat.deviceId,
       jenisLayanan: jenisLayanan || 'R1_900VA',
@@ -53,9 +50,9 @@ exports.daftarPerangkat = async (req, res) => {
 
 exports.ambilSemuaPerangkat = async (req, res) => {
   try {
-    console.log('User ID:', req.user._id); // Log user ID
+    console.log('User ID:', req.user._id); 
     const perangkat = await Perangkat.find({ userId: req.user._id });
-    console.log('Hasil Query:', perangkat); // Log hasil query
+    console.log('Hasil Query:', perangkat); 
 
     res.json({
       sukses: true,
@@ -73,8 +70,8 @@ exports.ambilSemuaPerangkat = async (req, res) => {
 exports.ambilPerangkat = async (req, res) => {
   try {
     const perangkat = await Perangkat.findOne({
-      deviceId: req.params.idPerangkat, // Ubah ke deviceId
-      userId: req.user._id,            // Ubah ke userId
+      deviceId: req.params.idPerangkat,
+      userId: req.user._id,            
     });
 
     if (!perangkat) {
@@ -100,19 +97,17 @@ exports.ambilPerangkat = async (req, res) => {
 
 exports.updatePerangkat = async (req, res) => {
   try {
-    const { nama, lokasi } = req.body;
-
-    // Log untuk debug
+    const { nama, lokasi, status } = req.body;
     console.log('ID Perangkat:', req.params.idPerangkat);
     console.log('User ID:', req.user._id);
 
     const perangkat = await Perangkat.findOneAndUpdate(
       { 
-        deviceId: req.params.idPerangkat, // Gunakan deviceId
-        userId: req.user._id             // Gunakan userId
+        deviceId: req.params.idPerangkat,
+        userId: req.user._id
       },
-      { nama, lokasi },
-      { new: true } // Mengembalikan data yang telah diperbarui
+      { nama, lokasi, status },
+      { new: true }
     );
 
     if (!perangkat) {

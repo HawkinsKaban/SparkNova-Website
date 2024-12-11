@@ -5,7 +5,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import Dashboard from './components/dashboard/Dashboard';
-import DeviceManager from './components/dashboard/DeviceManager';
+import DetailPage from './components/dashboard/DetailPage';
+import Setting from './components/dashboard/Setting';
 import Layout from './components/layout/Layout';
 
 // Protected Route Component
@@ -35,10 +36,18 @@ const App = () => {
             }
           />
           <Route
-            path="/devices"
+            path="/detail/:unit"
             element={
               <PrivateRoute>
-                <DeviceManager />
+                <DetailPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <PrivateRoute>
+                <Setting />
               </PrivateRoute>
             }
           />

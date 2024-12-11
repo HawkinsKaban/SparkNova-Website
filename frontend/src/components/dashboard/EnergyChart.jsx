@@ -1,47 +1,55 @@
-// components/dashboard/EnergyChart.jsx
+// src/components/dashboard/EnergyChart.jsx
 import React from 'react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
+import { Line } from 'react-chartjs-2';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
+
+// Mendaftarkan komponen Chart.js
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
   Tooltip,
-  Legend,
-  ResponsiveContainer
-} from 'recharts';
+  Legend
+);
 
 const EnergyChart = ({ data }) => {
+  // Menyiapkan data untuk chart.js
+  const chartData = {
+    labels: data.map((item) => item.time),  // Menampilkan waktu pada sumbu X
+    datasets: [
+      {
+        label: 'Energy Usage (W)',
+        data: data.map((item) => item.usage),  // Menampilkan penggunaan energi pada sumbu Y
+        fill: false,
+        borderColor: 'rgba(75,192,192,1)',  // Warna garis
+        tension: 0.1,  // Menentukan kelengkungan garis
+      },
+    ],
+  };
+
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      title: {
+        display: true,
+        text: 'Energy Consumption History',
+      },
+      tooltip: {
+        callbacks: {
+          label: (context) => {
+            return `Usage: ${context.raw} W`;  // Menampilkan nilai penggunaan energi
+          },
+        },
+      },
+    },
+  };
+
   return (
-    <ResponsiveContainer width="100%" height={400}>
-      <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis 
-          dataKey="timestamp" 
-          tickFormatter={(time) => new Date(time).toLocaleTimeString()}
-        />
-        <YAxis yAxisId="left" />
-        <YAxis yAxisId="right" orientation="right" />
-        <Tooltip 
-          labelFormatter={(label) => new Date(label).toLocaleString()}
-        />
-        <Legend />
-        <Line
-          yAxisId="left"
-          type="monotone"
-          dataKey="power"
-          stroke="#8884d8"
-          name="Power (W)"
-        />
-        <Line
-          yAxisId="right"
-          type="monotone"
-          dataKey="energy"
-          stroke="#82ca9d"
-          name="Energy (kWh)"
-        />
-      </LineChart>
-    </ResponsiveContainer>
+    <div className="chart-container">
+      <Line data={chartData} options={chartOptions} />
+    </div>
   );
 };
 
