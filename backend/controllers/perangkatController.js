@@ -3,9 +3,10 @@ const { Perangkat, PengaturanPerangkat } = require('../models');
 
 exports.daftarPerangkat = async (req, res) => {
   try {
-    const { idPerangkat, nama, lokasi, jenisLayanan, wifiSSID, wifiPassword } = req.body;
+    const { deviceId, nama, lokasi, jenisLayanan, wifiSSID, wifiPassword } = req.body;
 
-    const perangkatAda = await Perangkat.findOne({ deviceId: idPerangkat });
+    // Cek duplikat device ID
+    const perangkatAda = await Perangkat.findOne({ deviceId });
     if (perangkatAda) {
       return res.status(400).json({
         sukses: false,
@@ -13,16 +14,18 @@ exports.daftarPerangkat = async (req, res) => {
       });
     }
 
+    // Buat perangkat baru
     const perangkat = await Perangkat.create({
       userId: req.user._id,
-      deviceId: idPerangkat,
+      deviceId,
       name: nama,
       lokasi,
       status: 'configuring',
     });
 
+    // Buat pengaturan default
     await PengaturanPerangkat.create({
-      idPerangkat: perangkat.deviceId,
+      idPerangkat: deviceId,
       jenisLayanan: jenisLayanan || 'R1_900VA',
       batasDaya: 1000.0,
       persentasePeringatan: 80.0,
@@ -50,16 +53,12 @@ exports.daftarPerangkat = async (req, res) => {
 
 exports.ambilSemuaPerangkat = async (req, res) => {
   try {
-    console.log('User ID:', req.user._id); 
     const perangkat = await Perangkat.find({ userId: req.user._id });
-    console.log('Hasil Query:', perangkat); 
-
     res.json({
       sukses: true,
       data: perangkat,
     });
   } catch (error) {
-    console.error('Error Mengambil Perangkat:', error);
     res.status(500).json({
       sukses: false,
       pesan: error.message,
@@ -70,7 +69,7 @@ exports.ambilSemuaPerangkat = async (req, res) => {
 exports.ambilPerangkat = async (req, res) => {
   try {
     const perangkat = await Perangkat.findOne({
-      deviceId: req.params.idPerangkat,
+      deviceId: req.params.deviceId,
       userId: req.user._id,            
     });
 
@@ -86,7 +85,6 @@ exports.ambilPerangkat = async (req, res) => {
       data: perangkat,
     });
   } catch (error) {
-    console.error('Error Mengambil Perangkat:', error);
     res.status(500).json({
       sukses: false,
       pesan: error.message,
@@ -94,16 +92,13 @@ exports.ambilPerangkat = async (req, res) => {
   }
 };
 
-
 exports.updatePerangkat = async (req, res) => {
   try {
     const { nama, lokasi, status } = req.body;
-    console.log('ID Perangkat:', req.params.idPerangkat);
-    console.log('User ID:', req.user._id);
-
+    
     const perangkat = await Perangkat.findOneAndUpdate(
       { 
-        deviceId: req.params.idPerangkat,
+        deviceId: req.params.deviceId,
         userId: req.user._id
       },
       { nama, lokasi, status },
@@ -122,7 +117,6 @@ exports.updatePerangkat = async (req, res) => {
       data: perangkat,
     });
   } catch (error) {
-    console.error('Error Update Perangkat:', error);
     res.status(500).json({
       sukses: false,
       pesan: error.message,
@@ -130,14 +124,13 @@ exports.updatePerangkat = async (req, res) => {
   }
 };
 
-
 exports.updateStatusRelay = async (req, res) => {
   try {
     const { statusRelay } = req.body;
     
     const perangkat = await Perangkat.findOneAndUpdate(
       {
-        deviceId: req.params.idPerangkat,
+        deviceId: req.params.deviceId,
         userId: req.user._id
       },
       { statusRelay },
@@ -166,7 +159,7 @@ exports.updateStatusRelay = async (req, res) => {
 exports.hapusPerangkat = async (req, res) => {
   try {
     const perangkat = await Perangkat.findOneAndDelete({
-      deviceId: req.params.idPerangkat,
+      deviceId: req.params.deviceId,
       userId: req.user._id
     });
 
@@ -178,7 +171,7 @@ exports.hapusPerangkat = async (req, res) => {
     }
 
     // Hapus pengaturan terkait
-    await PengaturanPerangkat.deleteOne({ idPerangkat: req.params.idPerangkat });
+    await PengaturanPerangkat.deleteOne({ idPerangkat: req.params.deviceId });
 
     res.json({
       sukses: true,
