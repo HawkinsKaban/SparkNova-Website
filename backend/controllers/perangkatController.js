@@ -4,66 +4,68 @@ const { Perangkat, PengaturanPerangkat } = require('../models');
 exports.daftarPerangkat = async (req, res) => {
   try {
     const { idPerangkat, nama, lokasi, jenisLayanan, wifiSSID, wifiPassword } = req.body;
-    
+
     // Cek apakah perangkat sudah terdaftar
-    const perangkatAda = await Perangkat.findOne({ idPerangkat });
+    const perangkatAda = await Perangkat.findOne({ deviceId: idPerangkat });
     if (perangkatAda) {
       return res.status(400).json({
         sukses: false,
-        pesan: 'ID Perangkat sudah terdaftar'
+        pesan: 'ID Perangkat sudah terdaftar',
       });
     }
 
-    // Buat perangkat baru
+    // Buat perangkat baru dengan userId dari token
     const perangkat = await Perangkat.create({
-      idPengguna: req.user._id,
-      idPerangkat,
-      nama,
+      userId: req.user._id, // Otomatis diambil dari token
+      deviceId: idPerangkat,
+      name: nama,
       lokasi,
-      statusKoneksi: 'konfigurasi'  // Set status awal ke konfigurasi
+      status: 'configuring', // Status awal
     });
 
-    // Buat pengaturan default dengan konfigurasi WiFi
+    // Buat pengaturan perangkat default
     await PengaturanPerangkat.create({
-      idPerangkat: perangkat.idPerangkat,
+      idPerangkat: perangkat.deviceId,
       jenisLayanan: jenisLayanan || 'R1_900VA',
-      batasDaya: 1000.00,
-      persentasePeringatan: 80.00,
-      tarifPPJ: 5.00,
+      batasDaya: 1000.0,
+      persentasePeringatan: 80.0,
+      tarifPPJ: 5.0,
       wifiSSID,
-      wifiPassword
+      wifiPassword,
     });
 
-    // Response tanpa menampilkan password WiFi
     res.status(201).json({
       sukses: true,
       data: {
         ...perangkat.toJSON(),
         wifiSSID,
-        jenisLayanan
-      }
+        jenisLayanan,
+      },
     });
   } catch (error) {
     console.error('Daftar Perangkat Error:', error);
     res.status(500).json({
       sukses: false,
-      pesan: error.message
+      pesan: error.message,
     });
   }
 };
 
 exports.ambilSemuaPerangkat = async (req, res) => {
   try {
-    const perangkat = await Perangkat.find({ idPengguna: req.user._id });
-    
+    console.log('User ID:', req.user._id); // Log user ID
+    const perangkat = await Perangkat.find({ userId: req.user._id });
+    console.log('Hasil Query:', perangkat); // Log hasil query
+
     res.json({
       sukses: true,
-      data: perangkat
+      data: perangkat,
     });
   } catch (error) {
+    console.error('Error Mengambil Perangkat:', error);
     res.status(500).json({
       sukses: false,
-      pesan: error.message
+      pesan: error.message,
     });
   }
 };
@@ -71,60 +73,68 @@ exports.ambilSemuaPerangkat = async (req, res) => {
 exports.ambilPerangkat = async (req, res) => {
   try {
     const perangkat = await Perangkat.findOne({
-      idPerangkat: req.params.idPerangkat,
-      idPengguna: req.user._id
+      deviceId: req.params.idPerangkat, // Ubah ke deviceId
+      userId: req.user._id,            // Ubah ke userId
     });
 
     if (!perangkat) {
       return res.status(404).json({
         sukses: false,
-        pesan: 'Perangkat tidak ditemukan'
+        pesan: 'Perangkat tidak ditemukan',
       });
     }
 
     res.json({
       sukses: true,
-      data: perangkat
+      data: perangkat,
     });
   } catch (error) {
+    console.error('Error Mengambil Perangkat:', error);
     res.status(500).json({
       sukses: false,
-      pesan: error.message
+      pesan: error.message,
     });
   }
 };
 
+
 exports.updatePerangkat = async (req, res) => {
   try {
     const { nama, lokasi } = req.body;
-    
+
+    // Log untuk debug
+    console.log('ID Perangkat:', req.params.idPerangkat);
+    console.log('User ID:', req.user._id);
+
     const perangkat = await Perangkat.findOneAndUpdate(
       { 
-        idPerangkat: req.params.idPerangkat,
-        idPengguna: req.user._id
+        deviceId: req.params.idPerangkat, // Gunakan deviceId
+        userId: req.user._id             // Gunakan userId
       },
       { nama, lokasi },
-      { new: true }
+      { new: true } // Mengembalikan data yang telah diperbarui
     );
 
     if (!perangkat) {
       return res.status(404).json({
         sukses: false,
-        pesan: 'Perangkat tidak ditemukan'
+        pesan: 'Perangkat tidak ditemukan',
       });
     }
 
     res.json({
       sukses: true,
-      data: perangkat
+      data: perangkat,
     });
   } catch (error) {
+    console.error('Error Update Perangkat:', error);
     res.status(500).json({
       sukses: false,
-      pesan: error.message
+      pesan: error.message,
     });
   }
 };
+
 
 exports.updateStatusRelay = async (req, res) => {
   try {
@@ -132,8 +142,8 @@ exports.updateStatusRelay = async (req, res) => {
     
     const perangkat = await Perangkat.findOneAndUpdate(
       {
-        idPerangkat: req.params.idPerangkat,
-        idPengguna: req.user._id
+        deviceId: req.params.idPerangkat,
+        userId: req.user._id
       },
       { statusRelay },
       { new: true }
@@ -161,8 +171,8 @@ exports.updateStatusRelay = async (req, res) => {
 exports.hapusPerangkat = async (req, res) => {
   try {
     const perangkat = await Perangkat.findOneAndDelete({
-      idPerangkat: req.params.idPerangkat,
-      idPengguna: req.user._id
+      deviceId: req.params.idPerangkat,
+      userId: req.user._id
     });
 
     if (!perangkat) {
