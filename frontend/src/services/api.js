@@ -20,18 +20,20 @@ api.interceptors.request.use((config) => {
 });
 
 // Energy data services
-export const getEnergyData = async () => {
+export const getEnergyData = async (deviceId) => {
   try {
-    const response = await api.get('/energy/current');
+    const response = await api.get(`/energy/statistics/${deviceId}/daily`);
     return response.data;
   } catch (error) {
     throw error.response?.data?.message || 'Failed to fetch energy data';
   }
 };
 
-export const getEnergyHistory = async () => {
+export const getEnergyHistory = async (deviceId, from, to) => {
   try {
-    const response = await api.get('/energy/history');
+    const response = await api.get(`/energy/history/${deviceId}`, {
+      params: { from, to }
+    });
     return response.data;
   } catch (error) {
     throw error.response?.data?.message || 'Failed to fetch energy history';
@@ -39,9 +41,11 @@ export const getEnergyHistory = async () => {
 };
 
 // Device control services
-export const toggleRelay = async (status) => {
+export const toggleRelay = async (deviceId, status) => {
   try {
-    const response = await api.post('/devices/relay', { status });
+    const response = await api.put(`/devices/${deviceId}/relay`, { 
+      relayStatus: status 
+    });
     return response.data;
   } catch (error) {
     throw error.response?.data?.message || 'Failed to toggle relay';
@@ -50,34 +54,25 @@ export const toggleRelay = async (status) => {
 
 // Auth services
 export const loginUser = async (credentials) => {
-    try {
-      console.log('Attempting login with:', credentials);
-      const response = await axios.post(`${API_URL}/auth/login`, credentials);
-      console.log('Login response:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Login error:', error.response?.data || error.message);
-      throw error.response?.data?.message || 'Login failed';
-    }
-  };
-  
-  export const registerUser = async (userData) => {
-    try {
-      console.log('Sending registration request:', userData);
-      const response = await axios.post(`${API_URL}/auth/register`, userData);
-      console.log('Registration response:', response.data);
-      
-      if (response.data.success) {
-        return response.data;
-      } else {
-        throw new Error(response.data.message || 'Registration failed');
-      }
-    } catch (error) {
-      console.error('Registration error details:', error.response?.data);
-      if (error.response?.data?.message) {
-        throw new Error(error.response.data.message);
-      } else {
-        throw new Error('Registration failed. Please try again.');
-      }
-    }
-  };
+  try {
+    console.log('Attempting login with:', credentials);
+    const response = await axios.post(`${API_URL}/auth/login`, credentials);
+    console.log('Login response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Login error:', error.response?.data || error.message);
+    throw error.response?.data?.message || 'Login failed';
+  }
+};
+
+export const registerUser = async (userData) => {
+  try {
+    console.log('Sending registration request:', userData);
+    const response = await axios.post(`${API_URL}/auth/register`, userData);
+    console.log('Registration response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Registration error details:', error.response?.data);
+    throw error.response?.data?.message || 'Registration failed';
+  }
+};

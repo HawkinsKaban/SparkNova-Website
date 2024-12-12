@@ -17,24 +17,27 @@ const Register = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
-    // Check if passwords match
+  
+    // Validasi password
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       setLoading(false);
       return;
     }
-
+  
+    // Validasi panjang password
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      setLoading(false);
+      return;
+    }
+  
     try {
-      console.log('Submitting registration:', formData);
-      const { confirmPassword, ...registrationData } = formData; // Remove confirmPassword from API request
-      const response = await registerUser(registrationData);
-      console.log('Registration response:', response);
-      
-      if (response.success) {
-        // Registration successful, redirect to login
-        navigate('/login');
-      }
+      // Hapus confirmPassword dari data yang dikirim ke API
+      const { confirmPassword, ...registrationData } = formData;
+      await registerUser(registrationData);
+      // Jika berhasil, langsung redirect ke login
+      navigate('/login');
     } catch (err) {
       console.error('Registration error:', err);
       setError(err.message || 'Registration failed. Please try again.');
