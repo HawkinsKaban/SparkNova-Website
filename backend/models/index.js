@@ -1,15 +1,15 @@
-const Pengguna = require('./Pengguna');
-const Perangkat = require('./Perangkat');
-const PembacaanEnergi = require('./PembacaanEnergi');
-const Peringatan = require('./Peringatan');
-const PengaturanPerangkat = require('./PengaturanPerangkat');
-const StatistikPenggunaan = require('./StatistikPenggunaan');
+const User = require('./User');
+const Device = require('./Device');
+const EnergyReading = require('./EnergyReading');
+const Alert = require('./Alert');
+const DeviceSettings = require('./DeviceSettings');
+const UsageStatistics = require('./UsageStatistics');
 
 module.exports = {
-    Pengguna,
-    Perangkat,
-    PembacaanEnergi,
-    Peringatan, 
-    PengaturanPerangkat,
-    StatistikPenggunaan
+    User,
+    Device,
+    EnergyReading,
+    Alert,
+    DeviceSettings,
+    UsageStatistics
 };

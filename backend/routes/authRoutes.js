@@ -1,10 +1,11 @@
 // routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
-const { register, login } = require('../controllers/authController');
-const { validasiRegistrasi, validasiLogin } = require('../middleware/validasi');
+const authController = require('../controllers/authController');
+const { validateRegistration, validateLogin } = require('../middleware/validation');
 
-router.post('/register', validasiRegistrasi, register);
-router.post('/login', validasiLogin, login);
+// Make sure the handlers are properly imported and defined
+router.post('/register', validateRegistration, authController.register);
+router.post('/login', validateLogin, authController.login);
 
 module.exports = router;

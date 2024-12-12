@@ -1,19 +1,19 @@
 // middleware/auth.js
 const jwt = require('jsonwebtoken');
-const User = require('../models/Pengguna');
+const User = require('../models/User'); 
 
 exports.protect = async (req, res, next) => {
   try {
     let token;
     
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    if (req.headers.authorization?.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
     }
 
     if (!token) {
       return res.status(401).json({
-        sukses: false,
-        pesan: 'Akses ditolak. Login diperlukan'
+        success: false,
+        message: 'Access denied. Login required'
       });
     }
 
@@ -23,15 +23,14 @@ exports.protect = async (req, res, next) => {
       next();
     } catch (err) {
       return res.status(401).json({
-        sukses: false,
-        pesan: 'Token tidak valid'
+        success: false,
+        message: 'Invalid token'
       });
     }
   } catch (error) {
     return res.status(500).json({
-      sukses: false,
-      pesan: 'Server Error'
+      success: false,
+      message: 'Server Error'
     });
   }
 };
-

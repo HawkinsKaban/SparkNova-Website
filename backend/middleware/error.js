@@ -4,22 +4,23 @@ const errorHandler = (err, req, res, next) => {
 
   if (err.name === 'ValidationError') {
     return res.status(400).json({
-      sukses: false,
-      pesan: Object.values(err.errors).map(val => val.message)
+      success: false,
+      message: Object.values(err.errors).map(val => val.message)
     });
   }
 
   if (err.code === 11000) {
     return res.status(400).json({
-      sukses: false,
-      pesan: 'Data duplikat ditemukan'
+      success: false,
+      message: 'Duplicate data found'
     });
   }
 
   res.status(500).json({
-    sukses: false,
-    pesan: 'Server Error'
+    success: false,
+    message: 'Server Error'
   });
 };
 
+// Ensure correct export
 module.exports = errorHandler;

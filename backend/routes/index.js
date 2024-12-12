@@ -1,21 +1,15 @@
+// routes/index.js
 const express = require('express');
 const router = express.Router();
 
 const authRoutes = require('./authRoutes');
-const perangkatRoutes = require('./perangkatRoutes');
+const deviceRoutes = require('./deviceRoutes');
 const energyRoutes = require('./energyRoutes');
-const peringatanRoutes = require('./peringatanRoutes');
+const alertRoutes = require('./alertRoutes');
 
-// Auth routes
 router.use('/auth', authRoutes);
-
-// Perangkat routes
-router.use('/perangkat', perangkatRoutes);
-
-// Energy monitoring routes
+router.use('/devices', deviceRoutes);
 router.use('/energy', energyRoutes);
-
-// Peringatan routes
-router.use('/peringatan', peringatanRoutes);
+router.use('/alerts', alertRoutes);
 
 module.exports = router;
