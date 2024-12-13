@@ -1,0 +1,39 @@
+/* Animation */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  /* Toggle Switch */
+  .toggle-checkbox:checked {
+    right: 0;
+    border-color: #3B82F6;
+  }
+  
+  .toggle-checkbox:checked + .toggle-label {
+    background-color: #3B82F6;
+  }
+  
+  .toggle-checkbox {
+    right: 0;
+    transition: all 0.3s;
+  }
+  
+  .toggle-label {
+    transition: all 0.3s;
+  }
+  
+  /* Loading Spinner */
+  .loading-spinner {
+    border-top-color: transparent;
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
