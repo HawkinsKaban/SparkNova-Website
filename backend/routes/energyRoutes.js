@@ -1,17 +1,19 @@
+// routes/energyRoutes.js
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
-const energiController = require('../controllers/energiController');
+const energyController = require('../controllers/energyController');
 
 router.use(protect);
 
-router.post('/pembacaan', energiController.catatPembacaanEnergi);
+// Energy readings
+router.post('/readings', energyController.recordEnergyReading);
+router.get('/readings/:deviceId', energyController.getUsageHistory);
 
-// Menggunakan nama method yang sesuai dengan controller
-router.get('/pembacaan/:idPerangkat', energiController.ambilRiwayatPenggunaan);
+// Statistics
+router.get('/statistics/:deviceId/:period', energyController.getUsageStatistics);
 
-router.get('/statistik/:idPerangkat/:periode', energiController.ambilStatistikPenggunaan);
-
-router.get('/riwayat/:idPerangkat', energiController.ambilRiwayatPenggunaan);
+// Historical data
+router.get('/history/:deviceId', energyController.getUsageHistory);
 
 module.exports = router;

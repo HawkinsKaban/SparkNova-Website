@@ -1,295 +1,180 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { PlusCircle, RefreshCw } from 'lucide-react';
+import { DeviceCard } from './components/DeviceCard';
+import { DeviceModal } from './components/DeviceModal';
+import { useDeviceData } from './hooks/useDeviceData';
+import { useBluetoothDevice } from './hooks/useBluetoothDevice';
 
 const Dashboard = () => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [devices, setDevices] = useState([]); // State to store fetched devices
-  const [isModalOpen, setIsModalOpen] = useState(false); // State to control modal visibility
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { 
+    devices, 
+    loading, 
+    error: deviceError, 
+    fetchDevices, 
+    toggleDeviceStatus 
+  } = useDeviceData();
+
+  const {
+    bluetoothSupported,
+    connectionStep,
+    error: bluetoothError,
+    connectDevice,
+    configureDevice,
+    disconnect
+  } = useBluetoothDevice();
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
-    idPerangkat: '',
-    nama: '',
-    lokasi: '',
-    jenisLayanan: '',
+    deviceId: '',
+    name: '',
+    location: '',
+    serviceType: '',
     wifiSSID: '',
     wifiPassword: '',
   });
-  const navigate = useNavigate();
 
-  const jenisLayananOptions = [
-    'R1_900VA', 
-    'R1_1300VA', 
-    'R1_2200VA', 
-    'R2_3500VA', 
-    'R3_6600VA'
-  ];
+  // Auto fetch data
+  const fetchData = useCallback(async (signal) => {
+    try {
+      await fetchDevices(signal);
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      console.error('Error fetching devices:', error);
+    }
+  }, [fetchDevices]);
 
   useEffect(() => {
-    const fetchDevices = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const config = {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        };
+    const abortController = new AbortController();
+    
+    fetchData(abortController.signal);
+    const interval = setInterval(() => {
+      fetchData(abortController.signal);
+    }, 5000);
 
-        const response = await axios.get(`${process.env.REACT_APP_API_URL}/perangkat`, config);
-
-        if (response.data.sukses) {
-          setDevices(response.data.data);
-        }
-      } catch (err) {
-        setError('Failed to fetch data');
-      } finally {
-        setLoading(false);
-      }
+    return () => {
+      abortController.abort();
+      clearInterval(interval);
     };
+  }, [fetchData, location.pathname]);
 
-    fetchDevices();
-    const interval = setInterval(fetchDevices, 5000); // Re-fetch data every 5 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleCardClick = (deviceId) => {
-    navigate(`/detail/${deviceId}`);
+  // Form handlers
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
-  const handleToggle = async (deviceId, currentStatus) => {
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    
     try {
-      const newStatus = currentStatus === 'connected' ? 'disconnected' : 'connected';
-      const token = localStorage.getItem('token');
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
+      const configured = await configureDevice(formData);
+      if (!configured) return;
 
-      const response = await axios.put(
-        `${process.env.REACT_APP_API_URL}/perangkat/${deviceId}`,
-        { status: newStatus },
-        config
-      );
-
-      if (response.data.sukses) {
-        setDevices((prevDevices) =>
-          prevDevices.map((device) =>
-            device.deviceId === deviceId ? { ...device, status: newStatus } : device
-          )
-        );
-      }
+      await fetchDevices();
+      closeModal();
     } catch (err) {
-      setError('Failed to update status');
+      console.error('Device setup failed:', err);
     }
   };
 
+  // Modal handlers
   const openModal = () => {
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
+    disconnect();
     setFormData({
-      ...formData,
-      [name]: value,
+      deviceId: '',
+      name: '',
+      location: '',
+      serviceType: '',
+      wifiSSID: '',
+      wifiPassword: '',
     });
   };
 
-  const handleFormSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const token = localStorage.getItem('token');
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      };
-
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/perangkat`, formData, config);
-
-      if (response.data.sukses) {
-        // Update device list after adding new device
-        setDevices((prevDevices) => [...prevDevices, response.data.data]);
-        closeModal();
-      }
-    } catch (err) {
-      setError('Failed to add device');
-    }
-  };
-
-  if (loading) {
-    return <div className="flex justify-center items-center h-screen">Loading...</div>;
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-100 text-red-600 p-4 rounded-lg m-4">
-        Error: {error}
-      </div>
-    );
-  }
-
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
-      <div className="flex justify-end mb-4">
-        <button
-          onClick={openModal}
-          className="bg-blue-500 text-white py-2 px-4 rounded-md"
-        >
-          Add Device
-        </button>
-      </div>
-      <div className="flex flex-wrap gap-4">
-        {devices.map((device) => (
-          <MetricCard
-            key={device._id}
-            power={device.thresholds.warning}
-            unit={device.name}
-            status={device.status}
-            onClick={() => handleCardClick(device.deviceId)}
-            onToggle={() => handleToggle(device.deviceId, device.status)}
-          />
-        ))}
-      </div>
-
-      {/* Modal Form */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded-md w-96">
-            <h2 className="text-xl font-bold mb-4">Add New Device</h2>
-            <form onSubmit={handleFormSubmit}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">Device ID</label>
-                <input
-                  type="text"
-                  name="idPerangkat"
-                  value={formData.idPerangkat}
-                  onChange={handleInputChange}
-                  className="w-full border px-3 py-2 rounded-md"
-                  required
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">Name</label>
-                <input
-                  type="text"
-                  name="nama"
-                  value={formData.nama}
-                  onChange={handleInputChange}
-                  className="w-full border px-3 py-2 rounded-md"
-                  required
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">Location</label>
-                <input
-                  type="text"
-                  name="lokasi"
-                  value={formData.lokasi}
-                  onChange={handleInputChange}
-                  className="w-full border px-3 py-2 rounded-md"
-                  required
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">Service Type</label>
-                <select
-                  name="jenisLayanan"
-                  value={formData.jenisLayanan}
-                  onChange={handleInputChange}
-                  className="w-full border px-3 py-2 rounded-md"
-                  required
-                >
-                  <option value="">Select Service Type</option>
-                  {jenisLayananOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">WiFi SSID</label>
-                <input
-                  type="text"
-                  name="wifiSSID"
-                  value={formData.wifiSSID}
-                  onChange={handleInputChange}
-                  className="w-full border px-3 py-2 rounded-md"
-                  required
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">WiFi Password</label>
-                <input
-                  type="password"
-                  name="wifiPassword"
-                  value={formData.wifiPassword}
-                  onChange={handleInputChange}
-                  className="w-full border px-3 py-2 rounded-md"
-                  required
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="bg-gray-300 py-2 px-4 rounded-md"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="bg-blue-500 text-white py-2 px-4 rounded-md"
-                >
-                  Add Device
-                </button>
-              </div>
-            </form>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">Device Dashboard</h1>
+            <p className="text-gray-600 mt-1">Manage your connected devices</p>
+          </div>
+          <div className="flex gap-4 mt-4 md:mt-0">
+            <button
+              onClick={() => fetchData()}
+              disabled={loading}
+              className="flex items-center gap-2 bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+            <button 
+              onClick={openModal}
+              className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              <PlusCircle className="w-5 h-5" />
+              Add Device
+            </button>
           </div>
         </div>
-      )}
-    </div>
-  );
-};
 
-const MetricCard = ({ power, unit, status, onClick, onToggle }) => {
-  const [isOn, setIsOn] = useState(status === 'connected'); // Initialize toggle based on status
+        {/* Error Messages */}
+        {(deviceError || bluetoothError) && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-lg">
+            <p className="text-sm text-red-700">
+              {deviceError || bluetoothError}
+            </p>
+          </div>
+        )}
 
-  const handleToggle = () => {
-    setIsOn(!isOn);
-    onToggle(); // Trigger parent handler to update status in backend
-  };
-
-  return (
-    <div className="bg-white p-6 w-96 rounded-lg shadow-md">
-      <div className="flex justify-between">
-        <div className="w-full cursor-pointer" onClick={onClick}>
-          <h3 className="font-bold text-2xl mb-4">{power}W</h3>
-          <p className="text-md font-semibold">
-            <span className="text-sm font-normal ml-1">{unit}</span>
-          </p>
-        </div>
-        <div className="flex items-center">
-          <label className="relative inline-block w-12 h-6">
-            <input
-              type="checkbox"
-              checked={isOn}
-              onChange={handleToggle}
-              className="opacity-0 w-0 h-0"
-            />
-            <span
-              className={`slider round ${isOn ? 'bg-green-500' : 'bg-gray-300'}`}
-            ></span>
-          </label>
+        {/* Devices Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {devices.length === 0 ? (
+            <div className="col-span-3 text-center py-8">
+              <div className="bg-gray-50 rounded-lg p-6">
+                <PlusCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900">No devices found</h3>
+                <p className="text-gray-500 mt-2">
+                  Add your first device by clicking the button above.
+                </p>
+              </div>
+            </div>
+          ) : (
+            devices.map(device => (
+              <DeviceCard
+                key={device.deviceId}
+                device={device}
+                onNavigate={(id) => navigate(`/detail/${id}`)}
+                onToggle={toggleDeviceStatus}
+              />
+            ))
+          )}
         </div>
       </div>
+
+      {/* Device Modal */}
+      <DeviceModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        error={bluetoothError}
+        bluetoothSupported={bluetoothSupported}
+        connectionStep={connectionStep}
+        onConnect={connectDevice}
+        formData={formData}
+        onChange={handleInputChange}
+        onSubmit={handleFormSubmit}
+        loading={loading}
+      />
     </div>
   );
 };

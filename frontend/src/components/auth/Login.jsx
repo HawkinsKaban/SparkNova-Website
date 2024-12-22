@@ -18,21 +18,30 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
+  
+    // Validasi input
+    if (!credentials.email || !credentials.password) {
+      setError('Please fill in all fields');
+      setLoading(false);
+      return;
+    }
+  
     try {
-      console.log('Submitting login with:', credentials);
       const response = await loginUser(credentials);
-      console.log('Login successful:', response);
       
       if (response.token) {
-        login(response);
-        navigate('/');
+        // Simpan data user dan token
+        login({
+          token: response.token,
+          email: credentials.email
+        });
+        navigate('/dashboard'); // Ubah ini dari '/' menjadi '/dashboard'
       } else {
         setError('Invalid response from server');
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.message || 'Failed to login. Please try again.');
+      setError(err || err.message || 'Failed to login. Please try again.');
     } finally {
       setLoading(false);
     }

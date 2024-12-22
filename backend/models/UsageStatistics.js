@@ -1,21 +1,21 @@
 const mongoose = require('mongoose');
 
-const statistikPenggunaanSchema = new mongoose.Schema({
-  idPerangkat: {
+const usageStatisticsSchema = new mongoose.Schema({
+  deviceId: {
     type: String,
-    ref: 'Perangkat',
+    ref: 'Device',
     required: true
   },
-  periode: {
+  period: {
     type: String,
-    enum: ['harian', 'mingguan', 'bulanan'],
+    enum: ['daily', 'weekly', 'monthly'],
     required: true
   },
-  waktuMulai: {
+  startTime: {
     type: Date,
     required: true
   },
-  waktuSelesai: {
+  endTime: {
     type: Date,
     required: true
   },
@@ -23,33 +23,33 @@ const statistikPenggunaanSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
-  ratarataDaya: {
+  averagePower: {
     type: Number,
     required: true
   },
-  dayaMaksimum: {
+  maxPower: {
     type: Number,
     required: true
   },
-  dayaMinimum: {
+  minPower: {
     type: Number,
     required: true
   },
-  biayaDasar: {
+  baseCost: {
     type: Number,
     required: true
   },
-  biayaPPJ: {
+  taxCost: {
     type: Number,
     required: true
   },
-  totalBiaya: {
+  totalCost: {
     type: Number,
     required: true
   }
 }, {
   timestamps: true,
-  indexes: [{ idPerangkat: 1, periode: 1, waktuMulai: 1 }]
+  indexes: [{ deviceId: 1, period: 1, startTime: 1 }]
 });
 
-module.exports = mongoose.model('StatistikPenggunaan', statistikPenggunaanSchema);
+module.exports = mongoose.model('UsageStatistics', usageStatisticsSchema);
