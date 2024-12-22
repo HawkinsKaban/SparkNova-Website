@@ -9,6 +9,7 @@ import Dashboard from './components/dashboard/Dashboard';
 import DetailPage from './components/dashboard/DetailPage';
 import Setting from './components/dashboard/Setting';
 import Layout from './components/layout/Layout';
+import ResetPassword from './components/auth/ResetPassword';
 
 // Protected Route Component
 const PrivateRoute = ({ children }) => {
@@ -68,6 +69,14 @@ const App = () => {
                 <Register />
               </PublicRoute>
             } 
+          />
+          <Route
+            path="/reset"
+            element={
+              <PrivateRoute>
+                <ResetPassword />
+              </PrivateRoute>
+            }
           />
 
           {/* Protected Routes */}
