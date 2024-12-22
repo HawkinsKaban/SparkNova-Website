@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Menu, Bell, LogOut } from 'lucide-react';
+import Logo from "../../assets/SparkNova.png";
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -56,13 +57,8 @@ const Navbar = () => {
             <button className="hidden p-2 rounded-lg hover:bg-gray-100" aria-label="Open Menu">
               <Menu className="h-6 w-6 text-gray-600" />
             </button>
-            <div className="block">
-              <h1
-                className="text-xl font-semibold text-gray-800 cursor-pointer"
-                onClick={() => navigate('/dashboard')}
-              >
-                SparkNova <span className="hidden md:block">Dashboard</span>
-              </h1>
+            <div className="block" onClick={() => navigate('/dashboard')}>
+              <img src={Logo} alt="Logo" className='w-48' />
             </div>
           </div>
 
