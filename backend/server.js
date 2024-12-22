@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -8,11 +9,9 @@ require('dotenv').config();
 const connectDB = require('./config/database');
 const routes = require('./routes');
 const errorHandler = require('./middleware/error');
+const { verifyConnection } = require('./utils/emailService');
 
 const app = express();
-
-// Connect to database
-connectDB();
 
 // Security middleware
 app.use(helmet());
@@ -25,8 +24,8 @@ app.use(cors({
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: process.env.RATE_LIMIT_WINDOW_MS, // 15 minutes
-  max: process.env.RATE_LIMIT_MAX,
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS), 
+  max: parseInt(process.env.RATE_LIMIT_MAX),
   message: {
     success: false,
     message: 'Too many requests, please try again later'
@@ -58,9 +57,25 @@ app.use('*', (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
-  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-});
+
+// Start server and connect to services
+const startServer = async () => {
+  try {
+    // Connect to MongoDB
+    await connectDB();
+    
+    // Verify email connection
+    verifyConnection();
+
+    // Start server
+    app.listen(PORT, () => {
+      console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
@@ -71,11 +86,8 @@ process.on('uncaughtException', (err) => {
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Rejection:', err);
-  // Close server & exit process gracefully
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(1);
-  });
+  process.exit(1);
 });
 
-module.exports = app;
+// Start the server
+startServer();
