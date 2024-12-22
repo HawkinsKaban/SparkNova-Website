@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import BG from '../assets/bg.png';
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -71,7 +72,7 @@ const LandingPage = () => {
         <div className="hidden md:block md:w-1/2 bg-gray-100">
           <div className="h-full flex items-center justify-center p-8">
             <img
-              src="/api/placeholder/600/400"
+              src={BG}
               alt="Smart Energy Meter"
               className="max-w-md rounded-lg shadow-lg"
             />

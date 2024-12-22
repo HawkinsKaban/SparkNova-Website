@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Menu, Bell, LogOut } from 'lucide-react';
@@ -6,6 +7,31 @@ import { Menu, Bell, LogOut } from 'lucide-react';
 const Navbar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [userDetails, setUserDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUserDetails = async () => {
+      try {
+        if (user?.email) {
+          const token = localStorage.getItem('token');
+
+          const response = await axios.get(`http://localhost:5000/api/auth/detail/${user.email}`, {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+          setUserDetails(response.data.user);
+        }
+      } catch (error) {
+        console.error('Error fetching user details:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserDetails();
+  }, [user?.email]);
 
   const handleLogout = () => {
     logout();
@@ -18,12 +44,13 @@ const Navbar = () => {
         <div className="flex justify-between items-center h-full">
           {/* Left side */}
           <div className="flex items-center">
-            <button className="md:hidden p-2 rounded-lg hover:bg-gray-100">
+            <button className="hidden p-2 rounded-lg hover:bg-gray-100">
               <Menu className="h-6 w-6 text-gray-600" />
             </button>
-            <div className="hidden md:block">
-              <h1 className="text-xl font-semibold text-gray-800">
-                SparkNova Dashboard
+            <div className="block">
+              <h1 className="text-xl font-semibold text-gray-800 cursor-pointer" onClick={()=>navigate("/dashboard")}>
+                SparkNova 
+                <span className='hidden md:block'>Dashboard</span>
               </h1>
             </div>
           </div>
@@ -37,8 +64,16 @@ const Navbar = () => {
 
             {/* User & Logout */}
             <div className="flex items-center space-x-3">
-              <div className="hidden md:block">
-                <p className="text-sm font-medium text-gray-700">{user?.email}</p>
+              <div className="block cursor-pointer" onClick={()=>navigate("/settings")}>
+                {loading ? (
+                  <p className="text-sm text-gray-500">Loading...</p>
+                ) : userDetails ? (
+                  <p className="text-sm font-medium text-gray-700">
+                    {userDetails.username}
+                  </p>
+                ) : (
+                  <p className="text-sm text-red-500">Error loading details</p>
+                )}
               </div>
               <button
                 onClick={handleLogout}
