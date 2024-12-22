@@ -22,6 +22,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+// Configure trust proxy for Vercel
+app.set('trust proxy', 1);
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS), 
@@ -31,6 +34,8 @@ const limiter = rateLimit({
     message: 'Too many requests, please try again later'
   }
 });
+
+
 app.use(limiter);
 
 // Request size limits
@@ -47,6 +52,7 @@ app.use('/api', routes);
 
 // Error handler
 app.use(errorHandler);
+
 
 // Handle unhandled routes
 app.use('*', (req, res) => {
