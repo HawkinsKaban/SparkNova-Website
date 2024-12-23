@@ -10,6 +10,8 @@ import DetailPage from './components/dashboard/DetailPage';
 import Setting from './components/dashboard/Setting';
 import Layout from './components/layout/Layout';
 import ResetPassword from './components/auth/ResetPassword';
+import ForgotPassword from './components/auth/ForgotPassword';
+import PasswordResetConfirmation from './components/auth/PasswordResetConfirmation';
 
 // Protected Route Component
 const PrivateRoute = ({ children }) => {
@@ -70,6 +72,26 @@ const App = () => {
               </PublicRoute>
             } 
           />
+          
+          {/* Password Reset Routes */}
+          <Route
+            path="/forgot-password"
+            element={
+              <PublicRoute>
+                <ForgotPassword />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/reset-password/:token"
+            element={
+              <PublicRoute>
+                <PasswordResetConfirmation />
+              </PublicRoute>
+            }
+          />
+          
+          {/* Change Password Route (when logged in) */}
           <Route
             path="/reset"
             element={

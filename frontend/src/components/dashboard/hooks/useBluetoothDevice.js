@@ -1,4 +1,11 @@
+// hooks/useBluetoothDevice.js
 import { useState, useEffect, useCallback } from 'react';
+
+// UUID yang benar untuk BLE
+const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+const DEVICE_ID_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+const WIFI_SSID_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a9";
+const WIFI_PASS_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26aa";
 
 export const useBluetoothDevice = () => {
   const [bluetoothSupported, setBluetoothSupported] = useState(false);
@@ -12,7 +19,7 @@ export const useBluetoothDevice = () => {
 
   const connectDevice = useCallback(async () => {
     if (!bluetoothSupported) {
-      setError('Bluetooth is not supported in this browser');
+      setError('Bluetooth tidak didukung di browser ini');
       return false;
     }
 
@@ -22,59 +29,70 @@ export const useBluetoothDevice = () => {
 
       const device = await navigator.bluetooth.requestDevice({
         filters: [{ name: 'ESP32_DeviceConfig' }],
-        optionalServices: ['device_configuration_service']
+        optionalServices: [SERVICE_UUID]
       });
 
-      await device.gatt.connect();
-      setBluetoothDevice(device);
+      console.log('Perangkat ditemukan:', device.name);
+
+      const server = await device.gatt.connect();
+      console.log('Terhubung ke GATT server');
+
+      const service = await server.getPrimaryService(SERVICE_UUID);
+      console.log('Service ditemukan');
+
+      setBluetoothDevice({ device, service });
       setConnectionStep('connected');
 
-      device.gatt.addEventListener('gattserverdisconnected', () => {
+      device.addEventListener('gattserverdisconnected', () => {
+        console.log('Perangkat terputus');
         setConnectionStep('initial');
         setBluetoothDevice(null);
       });
 
       return true;
     } catch (err) {
-      console.error('Bluetooth connection error:', err);
-      setError(err.message || 'Failed to connect to Bluetooth device');
+      console.error('Error koneksi Bluetooth:', err);
+      setError(err.message || 'Gagal terhubung ke perangkat');
       setConnectionStep('initial');
       return false;
     }
   }, [bluetoothSupported]);
 
   const configureDevice = useCallback(async (config) => {
-    if (!bluetoothDevice) {
-      setError('Please connect to a device first');
+    if (!bluetoothDevice?.service) {
+      setError('Tidak ada perangkat yang terhubung');
       return false;
     }
 
     try {
       setConnectionStep('configuring');
-      const server = await bluetoothDevice.gatt.connect();
-      const service = await server.getPrimaryService('device_configuration_service');
+      console.log('Mulai konfigurasi perangkat...');
 
       const writeCharacteristic = async (uuid, value) => {
-        const characteristic = await service.getCharacteristic(uuid);
+        const characteristic = await bluetoothDevice.service.getCharacteristic(uuid);
         const encoder = new TextEncoder();
         await characteristic.writeValue(encoder.encode(value));
+        console.log(`Berhasil menulis karakteristik ${uuid}`);
       };
 
-      await writeCharacteristic('wifi_ssid', config.wifiSSID);
-      await writeCharacteristic('wifi_password', config.wifiPassword);
-      await writeCharacteristic('device_id', config.deviceId);
+      // Kirim konfigurasi secara berurutan
+      await writeCharacteristic(DEVICE_ID_UUID, config.deviceId);
+      await writeCharacteristic(WIFI_SSID_UUID, config.wifiSSID);
+      await writeCharacteristic(WIFI_PASS_UUID, config.wifiPassword);
 
+      console.log('Konfigurasi selesai');
       return true;
     } catch (err) {
-      console.error('Bluetooth configuration error:', err);
-      setError('Failed to configure device via Bluetooth');
+      console.error('Error konfigurasi:', err);
+      setError('Gagal mengkonfigurasi perangkat via Bluetooth');
       return false;
     }
   }, [bluetoothDevice]);
 
   const disconnect = useCallback(() => {
-    if (bluetoothDevice?.gatt.connected) {
-      bluetoothDevice.gatt.disconnect();
+    if (bluetoothDevice?.device?.gatt.connected) {
+      bluetoothDevice.device.gatt.disconnect();
+      console.log('Perangkat diputuskan');
     }
     setConnectionStep('initial');
     setBluetoothDevice(null);
