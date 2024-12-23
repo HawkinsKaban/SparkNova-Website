@@ -137,6 +137,46 @@ exports.login = async (req, res) => {
   }
 };
 
+exports.getUserByEmail = async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required to fetch user details'
+      });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt,
+        lastLogin: user.lastLogin || null
+      }
+    });
+  } catch (error) {
+    console.error('Get User by Email Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching user details'
+    });
+  }
+};
+
 exports.forgotPassword = async (req, res) => {
   try {
     console.log('📧 Received forgot password request for:', req.body.email);
