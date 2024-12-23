@@ -1,19 +1,22 @@
 // services/email/emailConfig.js
 const nodemailer = require('nodemailer');
 
+// Create transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   host: 'smtp.gmail.com',
   port: 465,
-  secure: true,
+  secure: true, // true for 465, false for other ports
   auth: {
     user: process.env.EMAIL_USERNAME,
     pass: process.env.EMAIL_PASSWORD
   },
-  debug: process.env.NODE_ENV === 'development',
-  logger: process.env.NODE_ENV === 'development'
+  tls: {
+    rejectUnauthorized: false
+  }
 });
 
+// Function to verify email connection
 const verifyConnection = async () => {
   try {
     await transporter.verify();
