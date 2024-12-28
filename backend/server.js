@@ -9,7 +9,7 @@ require('dotenv').config();
 const connectDB = require('./config/database');
 const routes = require('./routes');
 const errorHandler = require('./middleware/error');
-const { verifyConnection } = require('./utils/emailService');
+const { emailService } = require('./services');  // Update import path
 
 const app = express();
 
@@ -35,7 +35,6 @@ const limiter = rateLimit({
   }
 });
 
-
 app.use(limiter);
 
 // Request size limits
@@ -53,7 +52,6 @@ app.use('/api', routes);
 // Error handler
 app.use(errorHandler);
 
-
 // Handle unhandled routes
 app.use('*', (req, res) => {
   res.status(404).json({
@@ -64,35 +62,66 @@ app.use('*', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-// Start server and connect to services
-const startServer = async () => {
+// Initialize services and start server
+const initializeServices = async () => {
   try {
     // Connect to MongoDB
+    console.log('📦 Connecting to MongoDB...');
     await connectDB();
-    
-    // Verify email connection
-    verifyConnection();
+    console.log('✅ MongoDB Connected');
 
-    // Start server
+    // Verify email service
+    console.log('📧 Verifying email service...');
+    await emailService.verifyConnection();
+    console.log('✅ Email service verified');
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Service initialization failed:', error);
+    return false;
+  }
+};
+
+// Start server
+const startServer = async () => {
+  try {
+    // Initialize all services
+    const servicesInitialized = await initializeServices();
+    if (!servicesInitialized) {
+      console.error('❌ Failed to initialize services');
+      process.exit(1);
+    }
+
+    // Start Express server
     app.listen(PORT, () => {
-      console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+      console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
     });
   } catch (error) {
-    console.error('Failed to start server:', error);
+    console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 };
 
-// Handle uncaught exceptions
+// Error Handlers
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
+  console.error('❌ Uncaught Exception:', err);
   process.exit(1);
 });
 
-// Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
-  console.error('Unhandled Rejection:', err);
+  console.error('❌ Unhandled Promise Rejection:', err);
   process.exit(1);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received. Shutting down gracefully...');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 SIGINT received. Shutting down gracefully...');
+  process.exit(0);
 });
 
 // Start the server

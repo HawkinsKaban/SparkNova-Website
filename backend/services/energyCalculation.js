@@ -1,4 +1,4 @@
-// backend/service/index.js
+// backend/service/energyCalculation.js
 
 const ELECTRICITY_RATES = {
   R1_900VA: 1352,
