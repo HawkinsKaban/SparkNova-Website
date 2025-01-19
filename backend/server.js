@@ -200,7 +200,7 @@ class Server {
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
 
-    // Error handlers
+
     process.on('uncaughtException', (error) => {
       console.error('❌ Uncaught Exception:', error);
       shutdown('Uncaught Exception');
