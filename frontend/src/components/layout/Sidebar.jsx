@@ -1,17 +1,25 @@
+// components/layout/Sidebar.jsx
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Home, Settings, UserCircle } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 const Sidebar = () => {
   const location = useLocation();
-  const user = JSON.parse(localStorage.getItem('user')) || {};
+  const { user } = useAuth();
 
   const isActiveRoute = (path) => location.pathname === path;
 
   const menuItems = [
-    { path: '/', icon: Home, label: 'Dashboard' },
+    { path: '/dashboard', icon: Home, label: 'Dashboard' },
     { path: '/settings', icon: Settings, label: 'Settings' },
   ];
+
+  // Get display name from user data
+  const getDisplayName = () => {
+    if (!user) return 'User';
+    return user.username || user.email?.split('@')[0] || 'User';
+  };
 
   return (
     <div className="w-64 bg-white h-full border-r border-gray-200 flex flex-col">
@@ -53,10 +61,10 @@ const Sidebar = () => {
           </div>
           <div className="ml-3 min-w-0 flex-1">
             <p className="text-sm font-medium text-gray-900 truncate">
-              {user?.pengguna?.username || 'Username'}
+              {getDisplayName()}
             </p>
             <p className="text-xs text-gray-500 truncate">
-              {user?.pengguna?.email || 'Email'}
+              {user?.email || 'Email'}
             </p>
           </div>
         </Link>

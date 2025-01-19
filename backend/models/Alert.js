@@ -1,4 +1,3 @@
-// models/Alert.js
 const mongoose = require('mongoose');
 
 const alertSchema = new mongoose.Schema({
@@ -22,8 +21,10 @@ const alertSchema = new mongoose.Schema({
   },
   resolvedAt: Date
 }, {
-  timestamps: true,
-  indexes: [{ deviceId: 1, isActive: 1 }]
+  timestamps: true
 });
+
+// Single compound index for common queries
+alertSchema.index({ deviceId: 1, isActive: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Alert', alertSchema);

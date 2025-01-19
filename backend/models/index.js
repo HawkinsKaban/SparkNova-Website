@@ -6,10 +6,10 @@ const DeviceSettings = require('./DeviceSettings');
 const UsageStatistics = require('./UsageStatistics');
 
 module.exports = {
-    User,
-    Device,
-    EnergyReading,
-    Alert,
-    DeviceSettings,
-    UsageStatistics
+  User,
+  Device,
+  EnergyReading,
+  Alert,
+  DeviceSettings,
+  UsageStatistics
 };

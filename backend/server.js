@@ -1,128 +1,228 @@
-// server.js
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const mongoSanitize = require('express-mongo-sanitize');
+const xss = require('xss-clean');
+const compression = require('compression');
+const mongoose = require('mongoose');
 require('dotenv').config();
 
 const connectDB = require('./config/database');
 const routes = require('./routes');
 const errorHandler = require('./middleware/error');
-const { emailService } = require('./services');  // Update import path
+const mqttService = require('./services/mqttService');
 
-const app = express();
-
-// Security middleware
-app.use(helmet());
-app.use(cors({
-  origin: process.env.CLIENT_URL,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-// Configure trust proxy for Vercel
-app.set('trust proxy', 1);
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS), 
-  max: parseInt(process.env.RATE_LIMIT_MAX),
-  message: {
-    success: false,
-    message: 'Too many requests, please try again later'
+class Server {
+  constructor() {
+    this.app = express();
+    // Inisialisasi server HTTP setelah app
+    this.server = http.createServer(this.app);
+    this.setupMiddleware();
+    this.setupRoutes();
+    this.setupErrorHandling();
   }
-});
 
-app.use(limiter);
+  async start() {
+    try {
+      // Connect to database
+      await connectDB();
+      console.log('✅ MongoDB Connected');
 
-// Request size limits
-app.use(express.json({ limit: process.env.MAX_REQUEST_SIZE }));
-app.use(express.urlencoded({ extended: true, limit: process.env.MAX_REQUEST_SIZE }));
+      // Initialize MQTT service
+      await mqttService.init();
+      console.log('✅ MQTT Service Ready');
 
-// Logging
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-}
+      const PORT = process.env.PORT || 5000;
 
-// Routes
-app.use('/api', routes);
+      // Pastikan this.server sudah diinisialisasi
+      if (!this.server) {
+        this.server = http.createServer(this.app);
+      }
 
-// Error handler
-app.use(errorHandler);
+      // Start server
+      return new Promise((resolve) => {
+        this.server.listen(PORT, () => {
+          console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+          console.log(`🔗 API URL: http://localhost:${PORT}/api/v1`);
+          resolve();
+        });
+      });
 
-// Handle unhandled routes
-app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found'
-  });
-});
+      // Setup graceful shutdown
+      this.setupGracefulShutdown();
 
-const PORT = process.env.PORT || 5000;
-
-// Initialize services and start server
-const initializeServices = async () => {
-  try {
-    // Connect to MongoDB
-    console.log('📦 Connecting to MongoDB...');
-    await connectDB();
-    console.log('✅ MongoDB Connected');
-
-    // Verify email service
-    console.log('📧 Verifying email service...');
-    await emailService.verifyConnection();
-    console.log('✅ Email service verified');
-    
-    return true;
-  } catch (error) {
-    console.error('❌ Service initialization failed:', error);
-    return false;
-  }
-};
-
-// Start server
-const startServer = async () => {
-  try {
-    // Initialize all services
-    const servicesInitialized = await initializeServices();
-    if (!servicesInitialized) {
-      console.error('❌ Failed to initialize services');
+    } catch (error) {
+      console.error('❌ Server startup error:', error);
       process.exit(1);
     }
-
-    // Start Express server
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-    });
-  } catch (error) {
-    console.error('❌ Failed to start server:', error);
-    process.exit(1);
   }
-};
 
-// Error Handlers
-process.on('uncaughtException', (err) => {
-  console.error('❌ Uncaught Exception:', err);
-  process.exit(1);
-});
+  setupMiddleware() {
+    // Security middleware
+    this.app.use(helmet());
+    
+    // CORS configuration
+    this.app.use(cors({
+      origin: [process.env.CLIENT_URL, 'https://sparknova-ju3z6bxef-rays-projects-b1823648.vercel.app'],
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE'],
+      allowedHeaders: ['Content-Type', 'Authorization']
+    }));
 
-process.on('unhandledRejection', (err) => {
-  console.error('❌ Unhandled Promise Rejection:', err);
-  process.exit(1);
-});
+    // Security middleware
+    this.app.use(mongoSanitize());
+    this.app.use(xss());
+    this.app.use(compression());
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM received. Shutting down gracefully...');
-  process.exit(0);
-});
+    // Rate limiting
+    const limiter = rateLimit({
+      windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+      max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
+      message: {
+        success: false,
+        message: 'Too many requests, please try again later'
+      },
+      standardHeaders: true,
+      legacyHeaders: false
+    });
 
-process.on('SIGINT', () => {
-  console.log('🛑 SIGINT received. Shutting down gracefully...');
-  process.exit(0);
-});
+    this.app.use('/api/', limiter);
 
-// Start the server
-startServer();
+    // Body parsers
+    this.app.use(express.json({ 
+      limit: process.env.MAX_REQUEST_SIZE || '10mb'
+    }));
+    this.app.use(express.urlencoded({ 
+      extended: true, 
+      limit: process.env.MAX_REQUEST_SIZE || '10mb'
+    }));
+
+    // Logging in development
+    if (process.env.NODE_ENV === 'development') {
+      this.app.use(morgan('dev'));
+    }
+  }
+
+  setupRoutes() {
+    // API routes
+    this.app.use('/api/v1', routes);
+
+    // Health check endpoint
+    this.app.get('/health', (req, res) => {
+      const mongoStatus = mongoose.connection.readyState === 1;
+      const mqttStatus = mqttService.isConnected;
+
+      res.status(200).json({
+        success: true,
+        message: 'Server is healthy',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV,
+        services: {
+          mongodb: mongoStatus,
+          mqtt: mqttStatus
+        }
+      });
+    });
+
+    // Handle 404 routes
+    this.app.use('*', (req, res) => {
+      res.status(404).json({
+        success: false,
+        message: 'Route not found',
+        path: req.originalUrl
+      });
+    });
+  }
+
+  setupErrorHandling() {
+    this.app.use(errorHandler);
+  }
+
+  async start() {
+    try {
+      // Connect to database
+      await connectDB();
+      console.log('✅ MongoDB Connected');
+
+      // Initialize MQTT service
+      await mqttService.init();
+      console.log('✅ MQTT Service Ready');
+
+      const PORT = process.env.PORT || 5000;
+
+      // Start server
+      this.server.listen(PORT, () => {
+        console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+        console.log(`🔗 API URL: http://localhost:${PORT}/api/v1`);
+      });
+
+      // Setup graceful shutdown
+      this.setupGracefulShutdown();
+
+    } catch (error) {
+      console.error('❌ Server startup error:', error);
+      process.exit(1);
+    }
+  }
+
+  setupGracefulShutdown() {
+    const shutdown = async (signal) => {
+      console.log(`\n🛑 ${signal} received. Starting graceful shutdown...`);
+      
+      try {
+        // Close HTTP server
+        await new Promise((resolve) => {
+          this.server.close(() => {
+            console.log('✅ HTTP server closed');
+            resolve();
+          });
+        });
+
+        // Disconnect MQTT
+        mqttService.disconnect();
+        console.log('✅ MQTT service disconnected');
+
+        // Close MongoDB connection
+        await mongoose.connection.close(false);
+        console.log('✅ MongoDB connection closed');
+
+        process.exit(0);
+      } catch (error) {
+        console.error('Error during shutdown:', error);
+        process.exit(1);
+      }
+    };
+
+    // Shutdown signal handlers
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+
+
+    process.on('uncaughtException', (error) => {
+      console.error('❌ Uncaught Exception:', error);
+      shutdown('Uncaught Exception');
+    });
+
+    process.on('unhandledRejection', (error) => {
+      console.error('❌ Unhandled Rejection:', error);
+      shutdown('Unhandled Rejection');
+    });
+  }
+}
+
+// Modifikasi cara start server
+const server = new Server();
+
+// Untuk development (local)
+if (process.env.NODE_ENV !== 'production') {
+  server.start().catch(err => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  });
+}
+
+// Export untuk Vercel
+module.exports = server.app;

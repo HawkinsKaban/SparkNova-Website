@@ -21,35 +21,19 @@ const usageStatisticsSchema = new mongoose.Schema({
   },
   totalKwh: {
     type: Number,
-    required: true
-  },
-  averagePower: {
-    type: Number,
-    required: true
-  },
-  maxPower: {
-    type: Number,
-    required: true
-  },
-  minPower: {
-    type: Number,
-    required: true
-  },
-  baseCost: {
-    type: Number,
-    required: true
-  },
-  taxCost: {
-    type: Number,
-    required: true
+    required: true,
+    min: 0
   },
   totalCost: {
     type: Number,
-    required: true
+    required: true,
+    min: 0
   }
 }, {
-  timestamps: true,
-  indexes: [{ deviceId: 1, period: 1, startTime: 1 }]
+  timestamps: true
 });
+
+// Single compound index for querying statistics
+usageStatisticsSchema.index({ deviceId: 1, period: 1, startTime: -1 });
 
 module.exports = mongoose.model('UsageStatistics', usageStatisticsSchema);

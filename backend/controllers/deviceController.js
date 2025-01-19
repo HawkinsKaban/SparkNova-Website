@@ -1,204 +1,148 @@
-// controllers/deviceController.js
-const { Device, DeviceSettings } = require('../models');
+const DeviceService = require('../services/deviceService');
+const { sendSuccess, sendError } = require('../utils/responseHandler');
 
-exports.registerDevice = async (req, res) => {
-  try {
-    const { deviceId, name, location, serviceType, wifiSSID, wifiPassword } = req.body;
-
-    const deviceExists = await Device.findOne({ deviceId });
-    if (deviceExists) {
-      return res.status(400).json({
-        success: false,
-        message: 'Device ID already registered'
-      });
+class DeviceController {
+  // Register new device
+  static async registerDevice(req, res) {
+    try {
+      const device = await DeviceService.registerDevice(req.user._id, req.body);
+      return sendSuccess(res, device, 'Device berhasil didaftarkan', 201);
+    } catch (error) {
+      return sendError(res, error.message);
     }
+  }
 
-    const device = await Device.create({
-      userId: req.user._id,
-      deviceId,
-      name,
-      location,
-      status: 'configuring'
-    });
+  // Get all devices for user
+  static async getAllDevices(req, res) {
+    try {
+      const devices = await DeviceService.getAllUserDevices(req.user._id);
+      return sendSuccess(res, devices);
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  }
 
-    await DeviceSettings.create({
-      deviceId: device.deviceId,
-      serviceType: serviceType || 'R1_900VA',
-      powerLimit: 1000.0,
-      warningPercentage: 80.0,
-      taxRate: 5.0,
-      wifiSSID,
-      wifiPassword
-    });
-
-    console.log(`Device registered: ${deviceId}`);
-    
-    res.status(201).json({
-      success: true,
-      data: {
-        ...device.toJSON(),
-        wifiSSID,
-        serviceType
+  // Get single device
+  static async getDevice(req, res) {
+    try {
+      const device = await DeviceService.checkDeviceOwnership(
+        req.params.deviceId,
+        req.user._id
+      );
+      if (!device) {
+        return sendError(res, 'Device tidak ditemukan atau tidak memiliki akses', 404);
       }
-    });
-  } catch (error) {
-    console.error('Device registration error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-exports.getAllDevices = async (req, res) => {
-  try {
-    console.log('Getting devices for user:', req.user._id);
-    
-    const devices = await Device.find({ userId: req.user._id })
-      .select('-__v')
-      .lean();
-    
-    console.log(`Found ${devices.length} devices`);
-
-    res.json({
-      success: true,
-      data: devices
-    });
-  } catch (error) {
-    console.error('Error fetching devices:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-exports.getDevice = async (req, res) => {
-  try {
-    const device = await Device.findOne({
-      deviceId: req.params.deviceId,
-      userId: req.user._id
-    }).select('-__v');
-
-    if (!device) {
-      return res.status(404).json({
-        success: false,
-        message: 'Device not found'
-      });
+      return sendSuccess(res, device);
+    } catch (error) {
+      return sendError(res, error.message);
     }
-
-    res.json({
-      success: true,
-      data: device
-    });
-  } catch (error) {
-    console.error('Error fetching device:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
   }
-};
 
-exports.updateDevice = async (req, res) => {
-  try {
-    const { name, location, status } = req.body;
-    console.log(`Updating device: ${req.params.deviceId} for user: ${req.user._id}`);
-
-    const device = await Device.findOneAndUpdate(
-      { 
-        deviceId: req.params.deviceId,
-        userId: req.user._id
-      },
-      { name, location, status },
-      { new: true, runValidators: true }
-    );
-
-    if (!device) {
-      return res.status(404).json({
-        success: false,
-        message: 'Device not found'
-      });
+  // Update device settings
+  static async updateDevice(req, res) {
+    try {
+      const updatedDevice = await DeviceService.updateDeviceConfig(
+        req.params.deviceId,
+        req.user._id,
+        req.body
+      );
+      return sendSuccess(res, updatedDevice, 'Device berhasil diupdate');
+    } catch (error) {
+      return sendError(res, error.message);
     }
-
-    console.log(`Device updated: ${req.params.deviceId}`);
-
-    res.json({
-      success: true,
-      data: device
-    });
-  } catch (error) {
-    console.error('Device update error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
   }
-};
 
-exports.deleteDevice = async (req, res) => {
-  try {
-    const device = await Device.findOneAndDelete({
-      deviceId: req.params.deviceId,
-      userId: req.user._id
-    });
-
-    if (!device) {
-      return res.status(404).json({
-        success: false,
-        message: 'Device not found'
-      });
+  // Control device relay
+  static async controlRelay(req, res) {
+    try {
+      const { state } = req.body;
+      const device = await DeviceService.controlRelay(
+        req.params.deviceId,
+        req.user._id,
+        state
+      );
+      return sendSuccess(res, device, `Relay berhasil ${state ? 'dinyalakan' : 'dimatikan'}`);
+    } catch (error) {
+      return sendError(res, error.message);
     }
-
-    // Delete associated settings
-    await DeviceSettings.deleteOne({ deviceId: req.params.deviceId });
-    
-    console.log(`Device deleted: ${req.params.deviceId}`);
-
-    res.json({
-      success: true,
-      message: 'Device successfully deleted'
-    });
-  } catch (error) {
-    console.error('Device deletion error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
   }
-};
 
-exports.updateRelayStatus = async (req, res) => {
-  try {
-    const { relayStatus } = req.body;
-    
-    const device = await Device.findOneAndUpdate(
-      {
-        deviceId: req.params.deviceId,
-        userId: req.user._id
-      },
-      { relayStatus },
-      { new: true, runValidators: true }
-    );
-
-    if (!device) {
-      return res.status(404).json({
-        success: false,
-        message: 'Device not found'
-      });
+  // Get device health status
+  static async getDeviceHealth(req, res) {
+    try {
+      const health = await DeviceService.getDeviceHealth(
+        req.params.deviceId,
+        req.user._id
+      );
+      return sendSuccess(res, health);
+    } catch (error) {
+      return sendError(res, error.message);
     }
-
-    console.log(`Relay status updated for device: ${req.params.deviceId}`);
-
-    res.json({
-      success: true,
-      data: device
-    });
-  } catch (error) {
-    console.error('Relay status update error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
   }
-};
+
+  // Get device uptime history
+  static async getUptimeHistory(req, res) {
+    try {
+      const { deviceId } = req.params;
+      const { days = 7 } = req.query;
+
+      const device = await DeviceService.checkDeviceOwnership(deviceId, req.user._id);
+      if (!device) {
+        return sendError(res, 'Device tidak ditemukan atau tidak memiliki akses', 404);
+      }
+
+      const uptimeHistory = await DeviceService.getUptimeHistory(deviceId, parseInt(days));
+      return sendSuccess(res, uptimeHistory);
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  }
+
+  // Get device configuration
+  static async getDeviceConfig(req, res) {
+    try {
+      const device = await DeviceService.checkDeviceOwnership(
+        req.params.deviceId,
+        req.user._id
+      );
+      if (!device) {
+        return sendError(res, 'Device tidak ditemukan atau tidak memiliki akses', 404);
+      }
+
+      return sendSuccess(res, {
+        powerLimit: device.config.powerLimit,
+        currentLimit: device.config.currentLimit,
+        warningThreshold: device.config.warningThreshold,
+        serviceType: device.config.serviceType
+      });
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  }
+
+  // Update device configuration
+  static async updateDeviceConfig(req, res) {
+    try {
+      const updatedDevice = await DeviceService.updateDeviceConfig(
+        req.params.deviceId,
+        req.user._id,
+        req.body
+      );
+      return sendSuccess(res, updatedDevice, 'Konfigurasi device berhasil diupdate');
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  }
+
+  // Delete device
+  static async deleteDevice(req, res) {
+    try {
+      await DeviceService.deleteDevice(req.params.deviceId, req.user._id);
+      return sendSuccess(res, null, 'Device berhasil dihapus');
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  }
+}
+
+module.exports = DeviceController;

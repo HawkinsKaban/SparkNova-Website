@@ -1,99 +1,74 @@
-// models/User.js
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const validator = require('validator');
 
 const userSchema = new mongoose.Schema({
   username: {
     type: String,
-    required: [true, 'Username is required'],
+    required: [true, 'Username harus diisi'],
     unique: true,
     trim: true,
-    minlength: [3, 'Username must be at least 3 characters'],
-    maxlength: [30, 'Username cannot exceed 30 characters'],
-    validate: {
-      validator: function(v) {
-        return /^[a-zA-Z0-9_]+$/.test(v);
-      },
-      message: 'Username can only contain letters, numbers, and underscores'
-    }
+    minlength: [3, 'Username minimal 3 karakter'],
+    maxlength: [30, 'Username maksimal 30 karakter'],
+    match: [/^[a-zA-Z0-9_]+$/, 'Username hanya boleh huruf, angka, dan underscore']
   },
   email: {
     type: String,
-    required: [true, 'Email is required'],
+    required: [true, 'Email harus diisi'],
     unique: true,
     trim: true,
-    lowercase: true,
-    validate: {
-      validator: validator.isEmail,
-      message: 'Please provide a valid email address'
-    }
+    lowercase: true
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
-    minlength: [6, 'Password must be at least 6 characters'],
-    maxlength: [128, 'Password cannot exceed 128 characters']
+    required: [true, 'Password harus diisi'],
+    minlength: [6, 'Password minimal 6 karakter'],
+    select: false
   },
   role: {
     type: String,
     enum: ['user', 'admin'],
     default: 'user'
   },
-  lastLogin: {
-    type: Date
-  },
+  lastLogin: Date,
   isActive: {
     type: Boolean,
     default: true
-  }
+  },
+  resetPasswordToken: String,
+  resetPasswordExpiry: Date
 }, { 
   timestamps: true,
   toJSON: { 
     virtuals: true,
-    transform: function(doc, ret) {
+    transform: (doc, ret) => {
       delete ret.password;
+      delete ret.resetPasswordToken;
+      delete ret.resetPasswordExpiry;
       return ret;
     }
-  },
-  toObject: { 
-    virtuals: true 
   }
 });
 
-// Pre-save hook to hash password
+// Hash password sebelum disimpan
 userSchema.pre('save', async function(next) {
-  // Only hash the password if it has been modified
   if (!this.isModified('password')) return next();
-
+  
   try {
-    // Generate a salt and hash
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
     next();
   } catch (error) {
-    return next(error);
-  }
-});
-
-// Method to compare password
-userSchema.methods.comparePassword = async function(candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
-};
-
-// Custom error handling for duplicate keys
-userSchema.post('save', function(error, doc, next) {
-  if (error.name === 'MongoError' && error.code === 11000) {
-    next(new Error('Username or email already exists'));
-  } else {
     next(error);
   }
 });
 
-// Add a method to update last login
-userSchema.methods.updateLastLogin = async function() {
-  this.lastLogin = new Date();
-  await this.save();
+// Method untuk membandingkan password
+userSchema.methods.comparePassword = async function(candidatePassword) {
+  try {
+    return await bcrypt.compare(candidatePassword, this.password);
+  } catch (error) {
+    throw new Error('Error checking password');
+  }
 };
 
 module.exports = mongoose.model('User', userSchema);
