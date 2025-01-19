@@ -1,128 +1,96 @@
-// controllers/settingsController.js
-const { DeviceSettings, Device } = require('../models');
+const { DeviceSettings } = require('../models');
+const { sendSuccess, sendError } = require('../utils/responseHandler');
+const DeviceService = require('../services/deviceService');
 
-exports.getSettings = async (req, res) => {
-  try {
-    const { deviceId } = req.params;
-
-    const device = await Device.findOne({
-      deviceId,
-      userId: req.user._id
-    });
-
-    if (!device) {
-      return res.status(404).json({
-        success: false,
-        message: 'Device not found'
-      });
-    }
-
-    const settings = await DeviceSettings.findOne({ deviceId });
-    
-    if (!settings) {
-      return res.status(404).json({
-        success: false,
-        message: 'Device settings not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      data: settings
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-exports.updateSettings = async (req, res) => {
+class SettingsController {
+  static async getSettings(req, res) {
     try {
       const { deviceId } = req.params;
-      const { 
-        serviceType, 
-        powerLimit, 
-        warningPercentage, 
-        taxRate,
-        wifiSSID,
-        wifiPassword 
-      } = req.body;
 
-      // Check device ownership
-      const device = await Device.findOne({
+      const device = await DeviceService.checkDeviceOwnership(
         deviceId,
-        userId: req.user._id
-      });
+        req.user._id
+      );
 
       if (!device) {
-        return res.status(404).json({
-          success: false,
-          message: 'Device not found'
-        });
+        return sendError(res, 'Device tidak ditemukan', 404);
+      }
+
+      const settings = await DeviceSettings.findOne({ deviceId });
+      if (!settings) {
+        return sendError(res, 'Pengaturan device tidak ditemukan', 404);
+      }
+
+      return sendSuccess(res, settings);
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  }
+
+  static async updateSettings(req, res) {
+    try {
+      const { deviceId } = req.params;
+      const {
+        serviceType,
+        powerLimit,
+        warningPercentage,
+        taxRate,
+        wifiSSID,
+        wifiPassword
+      } = req.body;
+
+      const device = await DeviceService.checkDeviceOwnership(
+        deviceId,
+        req.user._id
+      );
+
+      if (!device) {
+        return sendError(res, 'Device tidak ditemukan', 404);
       }
 
       // Update settings
-      const updatedSettings = await DeviceSettings.findOneAndUpdate(
+      const settings = await DeviceSettings.findOneAndUpdate(
         { deviceId },
         {
           serviceType,
           powerLimit,
           warningPercentage,
           taxRate,
-          wifiSSID,
-          wifiPassword
+          ...(wifiSSID && { wifiSSID }),
+          ...(wifiPassword && { wifiPassword })
         },
-        { 
+        {
           new: true,
-          runValidators: true 
+          runValidators: true
         }
       );
 
-      if (!updatedSettings) {
-        return res.status(404).json({
-          success: false,
-          message: 'Device settings not found'
-        });
+      if (!settings) {
+        return sendError(res, 'Pengaturan device tidak ditemukan', 404);
       }
 
-      // Update device status to 'configuring'
-      await Device.findOneAndUpdate(
-        { deviceId },
-        { status: 'configuring' }
-      );
+      // Update device status
+      await DeviceService.updateDeviceStatus(deviceId, 'configuring');
 
-      res.json({
-        success: true,
-        data: updatedSettings
-      });
+      return sendSuccess(res, settings, 'Pengaturan berhasil diperbarui');
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
+      return sendError(res, error.message);
     }
-};
+  }
 
-exports.resetToDefault = async (req, res) => {
+  static async resetToDefault(req, res) {
     try {
       const { deviceId } = req.params;
 
-      // Check device ownership
-      const device = await Device.findOne({
+      const device = await DeviceService.checkDeviceOwnership(
         deviceId,
-        userId: req.user._id
-      });
+        req.user._id
+      );
 
       if (!device) {
-        return res.status(404).json({
-          success: false,
-          message: 'Device not found'
-        });
+        return sendError(res, 'Device tidak ditemukan', 404);
       }
 
-      // Reset to default settings
       const defaultSettings = {
         serviceType: 'R1_900VA',
         powerLimit: 1000.00,
@@ -130,110 +98,82 @@ exports.resetToDefault = async (req, res) => {
         taxRate: 5.00
       };
 
-      const updatedSettings = await DeviceSettings.findOneAndUpdate(
+      const settings = await DeviceSettings.findOneAndUpdate(
         { deviceId },
         defaultSettings,
-        { 
-          new: true,
-          runValidators: true 
-        }
+        { new: true, runValidators: true }
       );
 
-      res.json({
-        success: true,
-        message: 'Settings reset to default successfully',
-        data: updatedSettings
-      });
+      return sendSuccess(
+        res,
+        settings,
+        'Pengaturan berhasil direset ke default'
+      );
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
+      return sendError(res, error.message);
     }
-};
+  }
 
-exports.updateWifiConfig = async (req, res) => {
+  static async updateWifiConfig(req, res) {
     try {
       const { deviceId } = req.params;
       const { wifiSSID, wifiPassword } = req.body;
 
-      // Check device ownership
-      const device = await Device.findOne({
+      const device = await DeviceService.checkDeviceOwnership(
         deviceId,
-        userId: req.user._id
-      });
+        req.user._id
+      );
 
       if (!device) {
-        return res.status(404).json({
-          success: false,
-          message: 'Device not found'
-        });
+        return sendError(res, 'Device tidak ditemukan', 404);
       }
 
-      // Update WiFi configuration
-      const updatedSettings = await DeviceSettings.findOneAndUpdate(
+      const settings = await DeviceSettings.findOneAndUpdate(
         { deviceId },
         { wifiSSID, wifiPassword },
         { new: true }
       );
 
       // Update device status
-      await Device.findOneAndUpdate(
-        { deviceId },
-        { 
-          status: 'configuring',
-          lastConnection: new Date()
-        }
+      await DeviceService.updateDeviceStatus(
+        deviceId,
+        'configuring',
+        { lastConnection: new Date() }
       );
 
-      res.json({
-        success: true,
-        message: 'WiFi configuration updated successfully',
-        data: {
-          wifiSSID: updatedSettings.wifiSSID,
-          status: 'configuring'
-        }
-      });
+      return sendSuccess(res, {
+        wifiSSID: settings.wifiSSID,
+        status: 'configuring'
+      }, 'Konfigurasi WiFi berhasil diperbarui');
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
+      return sendError(res, error.message);
     }
-};
+  }
 
-exports.getConfigurationHistory = async (req, res) => {
+  static async getConfigurationHistory(req, res) {
     try {
       const { deviceId } = req.params;
 
-      // Check device ownership
-      const device = await Device.findOne({
+      const device = await DeviceService.checkDeviceOwnership(
         deviceId,
-        userId: req.user._id
-      });
+        req.user._id
+      );
 
       if (!device) {
-        return res.status(404).json({
-          success: false,
-          message: 'Device not found'
-        });
+        return sendError(res, 'Device tidak ditemukan', 404);
       }
 
-      // Get settings history (using schema timestamps)
       const settings = await DeviceSettings.findOne({ deviceId })
         .select('serviceType powerLimit warningPercentage taxRate updatedAt');
 
-      res.json({
-        success: true,
-        data: {
-          currentSettings: settings,
-          lastUpdate: settings.updatedAt
-        }
+      return sendSuccess(res, {
+        currentSettings: settings,
+        lastUpdate: settings.updatedAt
       });
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
+      return sendError(res, error.message);
     }
-};
+  }
+}
+
+module.exports = SettingsController;

@@ -1,34 +1,33 @@
-// routes/deviceRoutes.js
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
-const deviceController = require('../controllers/deviceController');
-const settingsController = require('../controllers/settingsController');
+const DeviceController = require('../controllers/deviceController');
+const { validateDeviceRegistration, validateDeviceUpdate } = require('../middleware/validation');
 
+// Apply authentication middleware
 router.use(protect);
 
-// Device routes
+// Device Routes
 router.route('/')
-  .post(deviceController.registerDevice)
-  .get(deviceController.getAllDevices);
+  .get(DeviceController.getAllDevices)
+  .post(validateDeviceRegistration, DeviceController.registerDevice);
 
+// Device Control
 router.route('/:deviceId')
-  .get(deviceController.getDevice)
-  .put(deviceController.updateDevice)
-  .delete(deviceController.deleteDevice);
+  .get(DeviceController.getDevice)
+  .put(validateDeviceUpdate, DeviceController.updateDevice)
+  .delete(DeviceController.deleteDevice);
 
-router.route('/:deviceId/relay')
-  .put(deviceController.updateRelayStatus);
+// Device Status & Control
+router.put('/:deviceId/relay', DeviceController.controlRelay);
 
-// Settings routes
-router.route('/:deviceId/settings')
-  .get(settingsController.getSettings)
-  .put(settingsController.updateSettings);
+// Device Health & Monitoring
+router.get('/:deviceId/health', DeviceController.getDeviceHealth);
+router.get('/:deviceId/uptime', DeviceController.getUptimeHistory);
 
-router.route('/:deviceId/settings/wifi')
-  .put(settingsController.updateWifiConfig);
-
-router.route('/:deviceId/settings/reset')
-  .post(settingsController.resetToDefault);
+// Device Configuration
+router.route('/:deviceId/config')
+  .get(DeviceController.getDeviceConfig)
+  .put(validateDeviceUpdate, DeviceController.updateDeviceConfig);
 
 module.exports = router;

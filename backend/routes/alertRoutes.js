@@ -1,28 +1,27 @@
-// routes/alertRoutes.js
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
-const alertController = require('../controllers/alertController');
+const AlertController = require('../controllers/alertController');
+const { validateAlert } = require('../middleware/validation');
 
+// Apply authentication middleware
 router.use(protect);
 
-// Get all user's alerts and summary
-router.get('/user/all', alertController.getAllUserAlerts);
-router.get('/user/summary', alertController.getUserAlertsSummary);
+// Get alerts overview
+router.get('/overview', AlertController.getAlertOverview);
 
-// Get routes
-router.get('/:deviceId', alertController.getAlerts);
-router.get('/:deviceId/stats', alertController.getAlertStats);
-router.get('/detail/:alertId', alertController.getAlertById);
+// Device specific alerts
+router.route('/:deviceId')
+  .get(AlertController.getAlerts)
+  .post(validateAlert, AlertController.createAlert);
 
-// Create route
-router.post('/', alertController.createAlert);
+router.get('/:deviceId/stats', AlertController.getAlertStats);
 
-// Update routes
-router.put('/:alertId', alertController.updateAlert);
-router.put('/:alertId/resolve', alertController.resolveAlert);
+// Alert management
+router.route('/:alertId')
+  .get(AlertController.getAlertById)
+  .delete(AlertController.deleteAlert);
 
-// Delete route
-router.delete('/:alertId', alertController.deleteAlert);
+router.put('/:alertId/resolve', AlertController.resolveAlert);
 
-module.exports = router;
+module.exports = router ;

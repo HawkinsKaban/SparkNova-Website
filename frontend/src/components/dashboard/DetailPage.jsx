@@ -1,192 +1,299 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Zap, Gauge, Battery, Activity, Calendar } from 'lucide-react';
-import EnergyChart from '../dashboard/EnergyChart';
-import axios from 'axios';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { 
+  ArrowLeft, 
+  RefreshCcw,
+  Wallet,
+  Activity,
+  TrendingUp
+} from 'lucide-react';
+import deviceService from '../../services/deviceService';
+import energyService from '../../services/energyService';
+import MetricsGrid from './components/MetricsGrid';
+import EnergyChart from './components/EnergyChart';
 
 const DetailPage = () => {
-    const location = useLocation();
-    const navigate = useNavigate();
-    const deviceId = location.pathname.split('/')[2];  // Assumes deviceId is the third part of the URL
+  const { deviceId } = useParams();
+  const navigate = useNavigate();
+  const [period, setPeriod] = useState('daily');
+  
+  // State for different data types
+  const [latestReading, setLatestReading] = useState(null);
+  const [hourlyData, setHourlyData] = useState([]);
+  const [statistics, setStatistics] = useState(null);
+  const [costs, setCosts] = useState(null);
+  const [predictions, setPredictions] = useState(null);
+  
+  // Loading and error states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Ref for previous reading comparison
+  const previousReadingRef = useRef(null);
 
-    const [fromDate, setFromDate] = useState(new Date('2024-01-01T00:00:00'));
-    const [toDate, setToDate] = useState(new Date());
-    const [period, setPeriod] = useState('daily');
-    const [chartData, setChartData] = useState([]);
-    const [historyData, setHistoryData] = useState({});
-    const [statisticData, setStatisticData] = useState({});
-    const [loading, setLoading] = useState(true);
-    const token = localStorage.getItem('token');
+  // Comprehensive data fetching function
+  const fetchAllData = useCallback(async () => {
+    if (!deviceId) return;
 
-    // Fetch Historical Data
-    const fetchDataHistory = async () => {
-        setLoading(true);
-        try {
-            const response = await axios.get(
-                `${process.env.REACT_APP_API_URL}/energy/history/${deviceId}`,
-                {
-                    headers: { Authorization: `Bearer ${token}` },
-                    params: { from: fromDate.toISOString(), to: toDate.toISOString() },
-                }
-            );
-            if (response.data.success) {
-                setHistoryData(response.data?.data[0] || {}); // Safely accessing data[0]
-            }
-        } catch (error) {
-            console.error('Error fetching history data:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    try {
+      setLoading(true);
 
-    // Fetch Statistics Data
-    const fetchDataStatistics = async () => {
-        setLoading(true);
-        try {
-            const response = await axios.get(
-                `${process.env.REACT_APP_API_URL}/energy/statistics/${deviceId}/${period}`,
-                {
-                    headers: { Authorization: `Bearer ${token}` },
-                }
-            );
-            if (response.data.success) {
-                setStatisticData(response.data?.data || {});
-            }
-        } catch (error) {
-            console.error('Error fetching statistics data:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+      // Fetch latest reading
+      const latestReadingResponse = await deviceService.getDeviceById(deviceId);
+      const energyReadingResponse = await energyService.getLatestReading(deviceId);
+      
+      // Combine device and energy reading data
+      const combinedReading = {
+        ...latestReadingResponse.data,
+        readings: energyReadingResponse.data.readings,
+        status: energyReadingResponse.data.status
+      };
+      setLatestReading(combinedReading);
 
-    // Handle date range change
-    const handleSearch = () => {
-        fetchDataHistory();
-    };
+      // Fetch usage history
+      const usageResponse = await energyService.getReadings(deviceId, period);
+      setHourlyData(usageResponse.data.hourlyData || []);
 
-    // Fetch data on component mount and period change
-    useEffect(() => {
-        fetchDataHistory();  // Fetch historical data on component mount
-    }, [deviceId, fromDate, toDate]); // Rerun when deviceId or dates change
+      // Fetch statistics
+      const statisticsResponse = await energyService.getStatistics(deviceId, period);
+      setStatistics(statisticsResponse.data.summary);
 
-    useEffect(() => {
-        fetchDataStatistics();  // Fetch statistics whenever period changes
-    }, [period]);
+      // Fetch costs
+      const costsResponse = await energyService.getCosts(deviceId, period);
+      setCosts({
+        ...costsResponse.data.costs,
+        total: {
+          formatted: costsResponse.data.costs.costs.formatted,
+          value: costsResponse.data.costs.costs.total
+        },
+        base: costsResponse.data.costs.costs.base,
+        ppjTax: costsResponse.data.costs.costs.ppjTax,
+        adminFee: costsResponse.data.costs.costs.adminFee
+      });
 
+      // Fetch predictions
+      const predictionsResponse = await energyService.getPredictions(deviceId);
+      setPredictions(predictionsResponse.data.prediction);
+
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching device data:', err);
+      setError('Failed to fetch device data');
+    } finally {
+      setLoading(false);
+    }
+  }, [deviceId, period]);
+
+  // Initial and periodic data fetch
+  useEffect(() => {
+    fetchAllData();
+    const intervalId = setInterval(fetchAllData, 30000); // Refresh every 30 seconds
+    return () => clearInterval(intervalId);
+  }, [fetchAllData]);
+
+  // Update previous reading reference
+  useEffect(() => {
+    if (latestReading) {
+      previousReadingRef.current = latestReading;
+    }
+  }, [latestReading]);
+
+  // Handle period change
+  const handlePeriodChange = (newPeriod) => {
+    setPeriod(newPeriod);
+  };
+
+  // Loading state
+  if (loading) {
     return (
-        <div className="p-6">
-            {/* Header with back button and period selector */}
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center">
-                    <button
-                        onClick={() => navigate('/dashboard')}
-                        className="mr-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
-                    >
-                        <ArrowLeft className="w-6 h-6" />
-                    </button>
-                    <h1 className="text-2xl font-bold text-gray-800">{historyData.name || 'Device Name'}</h1>
-                </div>
-
-                <div className="flex items-center bg-white rounded-lg shadow px-4 py-2">
-                    <Calendar className="w-5 h-5 text-gray-500 mr-2" />
-                    <select
-                        value={period}
-                        onChange={(e) => setPeriod(e.target.value)}
-                        className="border-none bg-transparent focus:ring-0"
-                    >
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                    </select>
-                </div>
-            </div>
-
-            {/* Date Range Picker */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="flex flex-col">
-                    <label htmlFor="fromDate" className="text-sm font-semibold text-gray-500">From</label>
-                    <input
-                        type="datetime-local"
-                        id="fromDate"
-                        value={fromDate.toISOString().slice(0, 16)}
-                        onChange={(e) => setFromDate(new Date(e.target.value))}
-                        className="mt-2 p-2 border border-gray-300 rounded-lg"
-                    />
-                </div>
-
-                <div className="flex flex-col">
-                    <label htmlFor="toDate" className="text-sm font-semibold text-gray-500">To</label>
-                    <input
-                        type="datetime-local"
-                        id="toDate"
-                        value={toDate.toISOString().slice(0, 16)}
-                        onChange={(e) => setToDate(new Date(e.target.value))}
-                        className="mt-2 p-2 border border-gray-300 rounded-lg"
-                    />
-                </div>
-            </div>
-
-            {/* Filter Button */}
-            <div className="flex justify-end mb-6">
-                <button
-                    onClick={handleSearch}
-                    className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-                >
-                    Filter
-                </button>
-            </div>
-
-            {/* Real-time Readings Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-                {/* Display real-time device readings */}
-                {['voltage', 'current', 'power', 'energy', 'frequency', 'powerFactor'].map((metric, idx) => (
-                    <div key={idx} className="bg-white rounded-lg shadow p-4">
-                        <div className="flex items-center mb-2">
-                            <div className="w-5 h-5 text-gray-500 mr-2">{/* Icon logic based on metric */}</div>
-                            <span className="text-sm text-gray-500">{metric.charAt(0).toUpperCase() + metric.slice(1)}</span>
-                        </div>
-                        <p className="text-xl font-semibold">
-                            {historyData[metric] || '--'}
-                            <span className="text-sm text-gray-500 ml-1">
-                                {metric === 'voltage' ? 'V' : metric === 'current' ? 'A' : metric === 'power' ? 'W' : metric === 'energy' ? 'kWh' : metric === 'frequency' ? 'Hz' : ''}
-                            </span>
-                        </p>
-                    </div>
-                ))}
-            </div>
-
-            {/* Energy Chart */}
-            <div className="bg-white rounded-lg shadow p-6 mb-6">
-                <h2 className="text-lg font-semibold mb-4">Power Consumption History</h2>
-                {loading ? (
-                    <div className="flex justify-center p-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                    </div>
-                ) : (
-                    <EnergyChart data={chartData} period={period} />
-                )}
-            </div>
-
-            {/* Usage Statistics */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Render statistics based on fetched data */}
-                {['averagePower', 'totalKwh', 'totalCost'].map((stat, idx) => (
-                    <div key={idx} className="bg-white rounded-lg shadow p-6">
-                        <div className="flex items-center mb-4">
-                            <div className="w-6 h-6 text-blue-500 mr-2">{/* Icon logic based on stat */}</div>
-                            <h3 className="text-lg font-semibold">{stat === 'averagePower' ? 'Avg Usage' : stat === 'totalKwh' ? 'Total Usage' : 'Avg Cost'}</h3>
-                        </div>
-                        <p className="text-3xl font-bold">
-                            {statisticData[stat]?.toFixed(2) || '--'}
-                        </p>
-                        <p className="text-sm text-gray-500 mt-2">
-                            {stat === 'averagePower' ? 'Average daily consumption' : stat === 'totalKwh' ? 'Total energy consumed' : 'Average daily cost'}
-                        </p>
-                    </div>
-                ))}
-            </div>
-        </div>
+      <div className="flex justify-center items-center h-screen">
+        <RefreshCcw className="h-12 w-12 animate-spin text-blue-500" />
+      </div>
     );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header Section */}
+      <div className="flex justify-between items-center">
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <ArrowLeft className="h-6 w-6" />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold">{latestReading?.device?.name || 'Device Details'}</h1>
+            <p className="text-sm text-gray-500">ID: {deviceId}</p>
+          </div>
+        </div>
+        <div className="flex items-center space-x-4">
+          <select
+            value={period}
+            onChange={(e) => handlePeriodChange(e.target.value)}
+            className="border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="daily">Daily View</option>
+            <option value="weekly">Weekly View</option>
+            <option value="monthly">Monthly View</option>
+          </select>
+          <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+            latestReading?.status?.deviceStatus === 'connected' 
+              ? 'bg-green-100 text-green-800' 
+              : 'bg-red-100 text-red-800'
+          }`}>
+            {latestReading?.status?.deviceStatus || 'Unknown'}
+          </div>
+        </div>
+      </div>
+
+      {/* Latest Reading Monitor */}
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Real-Time Monitoring</h3>
+          <div className="flex items-center space-x-2">
+            <div className={`w-3 h-3 rounded-full ${
+              latestReading?.status?.deviceStatus === 'connected' 
+                ? 'bg-green-500 animate-pulse' 
+                : 'bg-red-500'
+            }`} />
+            <span className="text-sm text-gray-600">
+              {latestReading?.status?.deviceStatus === 'connected' ? 'Live' : 'Offline'}
+            </span>
+          </div>
+        </div>
+
+        {/* Metrics Grid */}
+        <MetricsGrid 
+          latestReading={latestReading}
+          isLoading={loading}
+        />
+
+        <div className="mt-4 flex justify-between items-center text-sm text-gray-500">
+          <span>Auto-refresh every 30s</span>
+          <span>Last update: {
+            latestReading?.readings?.timestamp?.local 
+              ? latestReading.readings.timestamp.local
+              : 'Never'
+          }</span>
+        </div>
+      </div>
+
+      {/* Energy Chart */}
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        <EnergyChart 
+          data={hourlyData}
+          period={period}
+          loading={loading}
+        />
+      </div>
+
+      {/* Statistics, Costs, and Predictions */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Costs Card */}
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Cost Analysis</h3>
+            <Wallet className="h-5 w-5 text-green-500" />
+          </div>
+          <div className="space-y-4">
+            <div>
+              <p className="text-2xl font-bold">
+                {costs?.total?.formatted || 'Rp 0'}
+              </p>
+              <p className="text-sm text-gray-500">Total Cost</p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Base Cost</span>
+                <span>Rp {costs?.base?.toLocaleString() || '0'}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>PPJ Tax</span>
+                <span>Rp {costs?.ppjTax?.toLocaleString() || '0'}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Admin Fee</span>
+                <span>Rp {costs?.adminFee?.toLocaleString() || '0'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Statistics Card */}
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Usage Statistics</h3>
+            <Activity className="h-5 w-5 text-blue-500" />
+          </div>
+          <div className="space-y-4">
+            <div>
+              <p className="text-2xl font-bold">
+                {statistics?.averagePower?.toFixed(2) || '0'} W
+              </p>
+              <p className="text-sm text-gray-500">Average Power</p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Maximum Power</span>
+                <span>{statistics?.maximumPower?.toFixed(2) || '0'} W</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Minimum Power</span>
+                <span>{statistics?.minimumPower?.toFixed(2) || '0'} W</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Total Energy</span>
+                <span>{statistics?.totalEnergy?.toFixed(3) || '0'} kWh</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Predictions Card */}
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Usage Predictions</h3>
+            <TrendingUp className="h-5 w-5 text-purple-500" />
+          </div>
+          <div className="space-y-4">
+            <div>
+              <p className="text-2xl font-bold">
+                {predictions?.monthly?.energy?.toFixed(3) || '0'} kWh
+              </p>
+              <p className="text-sm text-gray-500">Predicted Monthly Usage</p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Daily Prediction</span>
+                <span>{predictions?.daily?.energy?.toFixed(3) || '0'} kWh</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Weekly Prediction</span>
+                <span>{predictions?.weekly?.energy?.toFixed(3) || '0'} kWh</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Confidence Level</span>
+                <span>{((predictions?.confidenceLevel || 0) * 100)?.toFixed(1)}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default DetailPage;

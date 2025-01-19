@@ -1,4 +1,3 @@
-// models/Device.js
 const mongoose = require('mongoose');
 
 const deviceSchema = new mongoose.Schema({
@@ -9,16 +8,14 @@ const deviceSchema = new mongoose.Schema({
   },
   name: {
     type: String,
-    required: true
+    required: true,
+    trim: true
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
-  wifiSSID: String,
-  wifiPassword: String,
-  lastConnection: Date,
   status: {
     type: String,
     enum: ['connected', 'disconnected', 'configuring'],
@@ -28,16 +25,33 @@ const deviceSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  thresholds: {
-    warning: {
+  lastConnection: Date,
+  firmware: {
+    version: String,
+    lastUpdate: Date
+  },
+  hardware: {
+    esp32Version: String,
+    arduinoVersion: String
+  },
+  config: {
+    powerLimit: {
       type: Number,
-      default: 800
+      default: 2200
     },
-    critical: {
+    currentLimit: {
       type: Number,
-      default: 1000
+      default: 10
+    },
+    warningThreshold: {
+      type: Number,
+      default: 90
     }
   }
 }, { timestamps: true });
+
+// Indexes for efficient queries
+deviceSchema.index({ userId: 1, status: 1 });
+deviceSchema.index({ deviceId: 1, lastConnection: 1 });
 
 module.exports = mongoose.model('Device', deviceSchema);

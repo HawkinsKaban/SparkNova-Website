@@ -1,332 +1,212 @@
-// controllers/authController.js
-const { validationResult } = require('express-validator');
 const { User } = require('../models');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto'); 
 const { emailService } = require('../services');
+const { sendSuccess, sendError } = require('../utils/responseHandler');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: '30d'
-  });
-};
-
-exports.register = async (req, res) => {
-  // First, check for validation errors from express-validator middleware
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      success: false,
-      errors: errors.array().map(error => error.msg)
+class AuthController {
+  // Helper method untuk generate token
+  static generateToken(id) {
+    return jwt.sign({ id }, process.env.JWT_SECRET, { 
+      expiresIn: process.env.JWT_EXPIRE 
     });
   }
 
-  try {
-    const { username, email, password } = req.body;
-
-    // Check if user already exists
-    const userExists = await User.findOne({ 
-      $or: [
-        { username }, 
-        { email: email.toLowerCase() }
-      ] 
-    });
-
-    if (userExists) {
-      return res.status(400).json({
-        success: false,
-        message: userExists.username === username 
-          ? 'Username is already taken' 
-          : 'Email is already registered'
-      });
-    }
-
-    // Create new user
-    const user = await User.create({
-      username,
-      email: email.toLowerCase(),
-      password
-    });
-
-    // Generate token
-    const token = generateToken(user._id);
-
-    res.status(201).json({
-      success: true,
-      token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role
-      }
-    });
-  } catch (error) {
-    // Handle mongoose validation errors
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({
-        success: false,
-        message: messages.join(', ')
-      });
-    }
-
-    // Handle other unexpected errors
-    console.error('Register Error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error during registration'
-    });
-  }
-};
-
-exports.login = async (req, res) => {
-  // First, check for validation errors from express-validator middleware
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      success: false,
-      errors: errors.array().map(error => error.msg)
-    });
-  }
-
-  try {
-    const { email, password } = req.body;
-
-    // Find user by email
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
-    }
-
-    // Check password
-    const isPasswordMatch = await user.comparePassword(password);
-    if (!isPasswordMatch) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
-    }
-
-    // Update last login (optional)
-    user.lastLogin = new Date();
-    await user.save();
-
-    // Generate token
-    const token = generateToken(user._id);
-
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role
-      }
-    });
-  } catch (error) {
-    console.error('Login Error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error during login'
-    });
-  }
-};
-
-exports.getUserByEmail = async (req, res) => {
-  try {
-    const { email } = req.params;
-
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email is required to fetch user details'
-      });
-    }
-
-    const user = await User.findOne({ email: email.toLowerCase() });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        createdAt: user.createdAt,
-        lastLogin: user.lastLogin || null
-      }
-    });
-  } catch (error) {
-    console.error('Get User by Email Error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching user details'
-    });
-  }
-};
-
-exports.forgotPassword = async (req, res) => {
-  try {
-    console.log('📧 Received forgot password request for:', req.body.email);
-    
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide an email address'
-      });
-    }
-
-    // Find user with reset token fields
-    const user = await User.findOne({ email: email.toLowerCase() })
-      .select('+resetPasswordToken +resetPasswordExpiry');
-
-    if (!user) {
-      console.log('❌ No user found with email:', email);
-      return res.status(404).json({
-        success: false,
-        message: 'No account found with that email'
-      });
-    }
-
-    console.log('✅ User found:', user.email);
-
-    // Generate reset token
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    console.log('🔑 Generated reset token');
-
-    // Save reset token
-    user.resetPasswordToken = resetToken;
-    user.resetPasswordExpiry = Date.now() + 3600000; // 1 hour
-
+  // Register
+  static async register(req, res) {
     try {
+      const { username, email, password } = req.body;
+
+      const userExists = await User.findOne({
+        $or: [{ username }, { email: email.toLowerCase() }]
+      });
+
+      if (userExists) {
+        return sendError(res, 
+          userExists.username === username ? 
+          'Username sudah digunakan' : 
+          'Email sudah terdaftar', 
+        400);
+      }
+
+      const user = await User.create({
+        username,
+        email: email.toLowerCase(),
+        password
+      });
+
+      const token = AuthController.generateToken(user._id);
+
+      return sendSuccess(res, {
+        token,
+        user: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+          role: user.role
+        }
+      }, 'Registrasi berhasil', 201);
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  }
+
+  // Login
+  static async login(req, res) {
+    try {
+      const { email, password } = req.body;
+
+      const user = await User.findOne({ email: email.toLowerCase() })
+        .select('+password');
+
+      if (!user || !(await user.comparePassword(password))) {
+        return sendError(res, 'Email atau password salah', 401);
+      }
+
+      user.lastLogin = new Date();
       await user.save();
-      console.log('💾 Reset token saved to user');
-    } catch (saveError) {
-      console.error('❌ Error saving reset token:', saveError);
-      return res.status(500).json({
-        success: false,
-        message: 'Error saving reset token'
-      });
+
+      const token = AuthController.generateToken(user._id);
+
+      return sendSuccess(res, {
+        token,
+        user: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+          role: user.role
+        }
+      }, 'Login berhasil');
+    } catch (error) {
+      return sendError(res, error.message);
     }
+  }
 
-    // Create reset URL
-    const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
-
+  // Get Profile
+  static async getProfile(req, res) {
     try {
-      // Using email service to send reset email
-      await emailService.sendPasswordResetEmail(user, resetUrl);
+      const user = await User.findById(req.user._id);
+      if (!user) {
+        return sendError(res, 'User tidak ditemukan', 404);
+      }
+      return sendSuccess(res, user);
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  }
 
-      console.log('✅ Password reset email sent successfully');
+  // Update Profile
+  static async updateProfile(req, res) {
+    try {
+      const { username, email } = req.body;
+      const user = await User.findById(req.user._id);
 
-      return res.json({
-        success: true,
-        message: 'Password reset instructions have been sent to your email'
+      if (!user) {
+        return sendError(res, 'User tidak ditemukan', 404);
+      }
+
+      if (username && username !== user.username) {
+        const exists = await User.findOne({ username });
+        if (exists) {
+          return sendError(res, 'Username sudah digunakan', 400);
+        }
+        user.username = username;
+      }
+
+      if (email && email.toLowerCase() !== user.email) {
+        const exists = await User.findOne({ email: email.toLowerCase() });
+        if (exists) {
+          return sendError(res, 'Email sudah terdaftar', 400);
+        }
+        user.email = email.toLowerCase();
+      }
+
+      await user.save();
+      return sendSuccess(res, user, 'Profil berhasil diperbarui');
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  }
+
+  // Forgot Password
+  static async forgotPassword(req, res) {
+    try {
+      const { email } = req.body;
+      const user = await User.findOne({ email: email.toLowerCase() });
+
+      if (!user) {
+        return sendError(res, 'Email tidak terdaftar', 404);
+      }
+
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      user.resetPasswordToken = resetToken;
+      user.resetPasswordExpiry = Date.now() + 3600000; // 1 jam
+      await user.save();
+
+      const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+
+      try {
+        await emailService.sendPasswordResetEmail(user, resetUrl);
+        return sendSuccess(res, null, 'Email reset password telah dikirim');
+      } catch (error) {
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpiry = undefined;
+        await user.save();
+        return sendError(res, 'Gagal mengirim email reset password');
+      }
+    } catch (error) {
+      return sendError(res, error.message);
+    }
+  }
+
+  // Reset Password
+  static async resetPassword(req, res) {
+    try {
+      const { token } = req.params;
+      const { password } = req.body;
+
+      const user = await User.findOne({
+        resetPasswordToken: token,
+        resetPasswordExpiry: { $gt: Date.now() }
       });
-    } catch (emailError) {
-      console.error('❌ Error sending email:', emailError);
 
-      // Reset the token if email fails
+      if (!user) {
+        return sendError(res, 'Token tidak valid atau sudah kadaluarsa', 400);
+      }
+
+      user.password = password;
       user.resetPasswordToken = undefined;
       user.resetPasswordExpiry = undefined;
       await user.save();
 
-      return res.status(500).json({
-        success: false,
-        message: 'Error sending password reset email. Please try again later.'
-      });
+      return sendSuccess(res, null, 'Password berhasil direset');
+    } catch (error) {
+      return sendError(res, error.message);
     }
-  } catch (error) {
-    console.error('❌ Forgot password error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'An error occurred while processing your request'
-    });
   }
-};
 
-exports.resetPassword = async (req, res) => {
-  try {
-    const { password } = req.body;
-    const { token } = req.params;
-
-    const user = await User.findOne({
-      resetPasswordToken: token,
-      resetPasswordExpiry: { $gt: Date.now() }
-    });
-
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid or expired reset token'
-      });
-    }
-
-    // Update password
-    user.password = password;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpiry = undefined;
-    await user.save();
-
-    // Send confirmation email
+  // Change Password
+  static async changePassword(req, res) {
     try {
-      await emailService.sendPasswordChangeConfirmationEmail(user);
-    } catch (emailError) {
-      console.error('❌ Error sending confirmation email:', emailError);
-      // Continue even if confirmation email fails
+      const { currentPassword, newPassword } = req.body;
+      const user = await User.findById(req.user._id).select('+password');
+
+      if (!user) {
+        return sendError(res, 'User tidak ditemukan', 404);
+      }
+
+      if (!(await user.comparePassword(currentPassword))) {
+        return sendError(res, 'Password saat ini tidak valid', 401);
+      }
+
+      user.password = newPassword;
+      await user.save();
+
+      return sendSuccess(res, null, 'Password berhasil diubah');
+    } catch (error) {
+      return sendError(res, error.message);
     }
-
-    res.json({
-      success: true,
-      message: 'Password successfully reset'
-    });
-  } catch (error) {
-    console.error('❌ Reset password error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error resetting password'
-    });
   }
-};
+}
 
-exports.verifyResetToken = async (req, res) => {
-  try {
-    const { token } = req.params;
-
-    const user = await User.findOne({
-      resetPasswordToken: token,
-      resetPasswordExpiry: { $gt: Date.now() }
-    });
-
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid or expired reset token'
-      });
-    }
-
-    res.json({
-      success: true,
-      message: 'Valid reset token'
-    });
-  } catch (error) {
-    console.error('❌ Verify token error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error verifying reset token'
-    });
-  }
-};
+module.exports = AuthController;

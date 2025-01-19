@@ -1,154 +1,190 @@
-// controllers/energyController.js
-const { 
-  EnergyReading, 
-  Device, 
-  DeviceSettings, 
-  Alert,
-  UsageStatistics 
-} = require('../models');
-
+const EnergyService = require('../services/energyService');
 const EnergyCalculationService = require('../services/energyCalculation');
+const DeviceService = require('../services/deviceService');
+const TimeUtils = require('../utils/timeUtils');
+const { sendSuccess, sendError } = require('../utils/responseHandler');
 
-exports.recordEnergyReading = async (req, res) => {
-  try {
-    const { deviceId, voltage, current, power, energy, frequency, powerFactor } = req.body;
+class EnergyController {
+  /**
+   * Get latest reading
+   */
+  static async getLatestReading(req, res) {
+    try {
+      const { deviceId } = req.params;
 
-    const device = await Device.findOne({ deviceId });
-    if (!device) {
-      return res.status(404).json({
-        success: false,
-        message: 'Device not found'
-      });
-    }
-
-    const settings = await DeviceSettings.findOne({ deviceId });
-    
-    const reading = await EnergyReading.create({
-      deviceId,
-      voltage,
-      current,
-      power,
-      energy,
-      frequency,
-      powerFactor
-    });
-
-    // Check power threshold
-    if (power > settings.powerLimit) {
-      await Alert.create({
-        deviceId,
-        type: 'critical',
-        message: `Power usage exceeds limit (${power}W/${settings.powerLimit}W)`
-      });
-    } else if (power > (settings.powerLimit * settings.warningPercentage / 100)) {
-      await Alert.create({
-        deviceId,
-        type: 'warning',
-        message: `Power usage approaching limit (${power}W/${settings.powerLimit}W)`
-      });
-    }
-
-    // Update device active time
-    await Device.findOneAndUpdate(
-      { deviceId },
-      { 
-        lastActive: new Date(),
-        connectionStatus: 'connected'
+      const device = await DeviceService.checkDeviceOwnership(deviceId, req.user._id);
+      if (!device) {
+        return sendError(res, 'Perangkat tidak ditemukan atau akses ditolak', 404);
       }
-    );
 
-    res.status(201).json({
-      success: true,
-      data: reading
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+      const latestReading = await EnergyService.getLatestReading(deviceId);
+      if (!latestReading) {
+        return sendError(res, 'Tidak ada data pembacaan tersedia', 404);
+      }
+
+      return sendSuccess(res, latestReading);
+    } catch (error) {
+      return sendError(res, `Gagal mengambil pembacaan terbaru: ${error.message}`);
+    }
   }
-};
 
-exports.getUsageStatistics = async (req, res) => {
-  try {
-    const { deviceId, period } = req.params;
-    
-    const device = await Device.findOne({
-      deviceId,
-      userId: req.user._id
-    });
+  /**
+   * Record new reading
+   */
+  static async recordReading(req, res) {
+    try {
+      const { deviceId, timestamp, readings } = req.body;
 
-    if (!device) {
-      return res.status(404).json({
-        success: false,
-        message: 'Device not found'
-      });
-    }
-
-    const settings = await DeviceSettings.findOne({ deviceId });
-    const { startTime, endTime } = EnergyCalculationService.getTimeRange(period);
-
-    const readings = await EnergyReading.find({
-      deviceId,
-      readingTime: {
-        $gte: startTime,
-        $lte: endTime
+      if (!deviceId || !readings) {
+        return sendError(res, 'ID Perangkat dan data pembacaan wajib diisi', 400);
       }
-    });
 
-    const statistics = await EnergyCalculationService.calculateUsageStatistics(
-      readings,
-      settings
-    );
+      const device = await DeviceService.checkDeviceOwnership(deviceId, req.user._id);
+      if (!device) {
+        return sendError(res, 'Perangkat tidak ditemukan atau akses ditolak', 404);
+      }
 
-    const newStats = await UsageStatistics.findOneAndUpdate(
-      {
+      const reading = await EnergyService.recordReading({
         deviceId,
+        timestamp: timestamp ? new Date(timestamp) : new Date(),
+        readings
+      });
+
+      return sendSuccess(res, reading, 'Pembacaan berhasil dicatat', 201);
+    } catch (error) {
+      return sendError(res, `Gagal merekam pembacaan: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get usage history
+   */
+  static async getUsageHistory(req, res) {
+    try {
+      const { deviceId, period } = req.params;
+
+      const device = await DeviceService.checkDeviceOwnership(deviceId, req.user._id);
+      if (!device) {
+        return sendError(res, 'Perangkat tidak ditemukan atau akses ditolak', 404);
+      }
+
+      const timeRange = TimeUtils.getTimeRange(period);
+      const usageHistory = await EnergyService.getUsageHistory(deviceId, timeRange);
+
+      return sendSuccess(res, usageHistory);
+    } catch (error) {
+      return sendError(res, `Gagal mengambil riwayat penggunaan: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get energy statistics
+   */
+  static async getEnergyStatistics(req, res) {
+    try {
+      const { deviceId, period } = req.params;
+  
+      // Check device ownership
+      const device = await DeviceService.checkDeviceOwnership(deviceId, req.user._id);
+      if (!device) {
+        return sendError(res, 'Perangkat tidak ditemukan atau akses ditolak', 404);
+      }
+  
+      // Get time range 
+      const timeRange = TimeUtils.getTimeRange(period);
+  
+      // Get statistics from energy service instead
+      const stats = await EnergyService.getUsageHistory(deviceId, timeRange);
+  
+      return sendSuccess(res, stats);
+    } catch (error) {
+      return sendError(res, `Gagal mengambil statistik energi: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get cost analysis
+   */
+  static async getCostAnalysis(req, res) {
+    try {
+      const { deviceId, period } = req.params;
+  
+      // Check device ownership
+      const device = await DeviceService.checkDeviceOwnership(deviceId, req.user._id);
+      if (!device) {
+        return sendError(res, 'Perangkat tidak ditemukan atau akses ditolak', 404);
+      }
+  
+      // Get time range
+      const timeRange = TimeUtils.getTimeRange(period);
+  
+      // Get usage history which includes cost analysis
+      const history = await EnergyService.getUsageHistory(deviceId, timeRange);
+  
+      // Extract cost data
+      const costAnalysis = {
+        timeRange: history.timeRange,
+        costs: history.costs,
+        usage: history.summary ? {
+          energy: history.summary.totalEnergy,
+          averagePower: history.summary.averagePower
+        } : null
+      };
+  
+      return sendSuccess(res, costAnalysis);
+    } catch (error) {
+      return sendError(res, `Gagal menganalisis biaya: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get energy predictions
+   */
+  static async getPredictions(req, res) {
+    try {
+      const { deviceId } = req.params;
+      const { period = 'monthly', method = 'average' } = req.query;
+
+      const device = await DeviceService.checkDeviceOwnership(deviceId, req.user._id);
+      if (!device) {
+        return sendError(res, 'Perangkat tidak ditemukan atau akses ditolak', 404);
+      }
+
+      const prediction = await EnergyCalculationService.predictEnergyConsumption(deviceId, {
         period,
-        startTime,
-        endTime
-      },
-      {
-        ...statistics,
-        startTime,
-        endTime
-      },
-      { new: true, upsert: true }
-    );
+        method
+      });
 
-    res.json({
-      success: true,
-      data: newStats
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+      return sendSuccess(res, prediction);
+    } catch (error) {
+      return sendError(res, `Gagal menghasilkan prediksi: ${error.message}`);
+    }
   }
-};
 
-exports.getUsageHistory = async (req, res) => {
-  try {
-    const { deviceId } = req.params;
-    const { from, to } = req.query;
+  /**
+   * Export energy data
+   */
+  static async exportEnergyData(req, res) {
+    try {
+      const { deviceId } = req.params;
+      const { startDate, endDate, format = 'json' } = req.query;
 
-    const readings = await EnergyReading.find({
-      deviceId,
-      readingTime: {
-        $gte: new Date(from),
-        $lte: new Date(to)
+      const device = await DeviceService.checkDeviceOwnership(deviceId, req.user._id);
+      if (!device) {
+        return sendError(res, 'Perangkat tidak ditemukan atau akses ditolak', 404);
       }
-    }).sort({ readingTime: 1 });
 
-    res.json({
-      success: true,
-      data: readings
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+      const exportedData = await EnergyService.exportEnergyData(deviceId, {
+        startDate: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        endDate: endDate ? new Date(endDate) : new Date(),
+        format
+      });
+
+      return sendSuccess(res, exportedData, 'Data berhasil diekspor');
+    } catch (error) {
+      return sendError(res, `Gagal mengekspor data: ${error.message}`);
+    }
   }
-};
+}
+
+module.exports = EnergyController;

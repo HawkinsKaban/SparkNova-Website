@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@radix-ui/react-alert-dialog": "^1.1.4",
+    "@radix-ui/react-slot": "^1.1.1",
     "@tailwindcss/forms": "^0.5.9",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
@@ -11,13 +13,16 @@
     "axios": "^1.7.9",
     "chart.js": "^4.4.7",
     "dotenv": "^16.4.7",
+    "framer-motion": "^11.18.1",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.2.0",
     "react-dom": "^18.3.1",
+    "react-hot-toast": "^2.5.1",
     "react-router-dom": "^7.0.2",
     "react-scripts": "5.0.1",
-    "recharts": "^2.14.1",
+    "recharts": "^2.15.0",
+    "socket.io-client": "^4.8.1",
     "web-vitals": "^2.1.4"
   },
   "scripts": {

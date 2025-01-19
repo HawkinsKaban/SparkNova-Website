@@ -1,19 +1,36 @@
-// routes/energyRoutes.js
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
-const energyController = require('../controllers/energyController');
+const EnergyController = require('../controllers/energyController');
+const { validatePeriod, validateDateRange } = require('../middleware/validation');
 
+// Apply authentication middleware
 router.use(protect);
 
-// Energy readings
-router.post('/readings', energyController.recordEnergyReading);
-router.get('/readings/:deviceId', energyController.getUsageHistory);
+// Basic reading routes
+router.route('/readings')
+  .post(EnergyController.recordReading);
 
-// Statistics
-router.get('/statistics/:deviceId/:period', energyController.getUsageStatistics);
+router.route('/readings/:deviceId/latest')
+  .get(EnergyController.getLatestReading);
 
-// Historical data
-router.get('/history/:deviceId', energyController.getUsageHistory);
+router.route('/readings/:deviceId/:period')
+  .get(validatePeriod, EnergyController.getUsageHistory);
+
+// Statistics routes
+router.route('/statistics/:deviceId/:period')
+  .get(validatePeriod, EnergyController.getEnergyStatistics);
+
+// Cost analysis routes
+router.route('/costs/:deviceId/:period')
+  .get(validatePeriod, EnergyController.getCostAnalysis);
+
+// Export routes
+router.route('/export/:deviceId')
+  .get(validateDateRange, EnergyController.exportEnergyData);
+
+// Analysis routes
+router.route('/predictions/:deviceId')
+  .get(EnergyController.getPredictions);
 
 module.exports = router;
