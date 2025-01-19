@@ -18,10 +18,46 @@ const mqttService = require('./services/mqttService');
 class Server {
   constructor() {
     this.app = express();
+    // Inisialisasi server HTTP setelah app
     this.server = http.createServer(this.app);
     this.setupMiddleware();
     this.setupRoutes();
     this.setupErrorHandling();
+  }
+
+  async start() {
+    try {
+      // Connect to database
+      await connectDB();
+      console.log('✅ MongoDB Connected');
+
+      // Initialize MQTT service
+      await mqttService.init();
+      console.log('✅ MQTT Service Ready');
+
+      const PORT = process.env.PORT || 5000;
+
+      // Pastikan this.server sudah diinisialisasi
+      if (!this.server) {
+        this.server = http.createServer(this.app);
+      }
+
+      // Start server
+      return new Promise((resolve) => {
+        this.server.listen(PORT, () => {
+          console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+          console.log(`🔗 API URL: http://localhost:${PORT}/api/v1`);
+          resolve();
+        });
+      });
+
+      // Setup graceful shutdown
+      this.setupGracefulShutdown();
+
+    } catch (error) {
+      console.error('❌ Server startup error:', error);
+      process.exit(1);
+    }
   }
 
   setupMiddleware() {
@@ -30,7 +66,7 @@ class Server {
     
     // CORS configuration
     this.app.use(cors({
-      origin: process.env.CLIENT_URL,
+      origin: [process.env.CLIENT_URL, 'https://sparknova-ju3z6bxef-rays-projects-b1823648.vercel.app'],
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE'],
       allowedHeaders: ['Content-Type', 'Authorization']
@@ -177,8 +213,16 @@ class Server {
   }
 }
 
-// Start server
+// Modifikasi cara start server
 const server = new Server();
-server.start();
 
-module.exports = server;
+// Untuk development (local)
+if (process.env.NODE_ENV !== 'production') {
+  server.start().catch(err => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  });
+}
+
+// Export untuk Vercel
+module.exports = server.app;
